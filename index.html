@@ -28,7 +28,6 @@
             border-radius: 0.5rem;
             pointer-events: none;
             z-index: 10;
-            display: none; /* Se activa vía JS */
             box-shadow: 0 4px 10px rgba(0,0,0,0.5);
             text-align: center;
             min-width: 60px;
@@ -50,9 +49,11 @@
 <script type="importmap">
 {
   "imports": {
+    "three": "https://esm.sh/three@^0.182.0",
     "react": "https://esm.sh/react@^19.2.3",
+    "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
     "react/": "https://esm.sh/react@^19.2.3/",
-    "three": "https://esm.sh/three@^0.182.0"
+    "@google/genai": "https://esm.sh/@google/genai@^1.34.0"
   }
 }
 </script>
@@ -114,7 +115,7 @@
             
             const STOP_LINE_V = 22; 
             const STOP_LINE_H = 22; 
-            const SENSOR_ZONE_POS = 45; 
+            const SENSOR_ZONE_POS = 30; // Ajustado: más cerca de la intersección
             const SENSOR_ZONE_LEN = 40; 
 
             const CAR_LENGTH = 4.5;
@@ -143,8 +144,8 @@
             // --- CLASE: Controlador de Semáforos ---
             class TrafficController {
                 constructor(scene) {
-                    this.stateV = LightState.RED;
-                    this.stateH = LightState.GREEN;
+                    this.stateV = LightState.GREEN; // Cambiado: Ahora la calle Vertical empieza en Verde
+                    this.stateH = LightState.RED;    // Cambiado: Ahora la calle Horizontal (Oeste) empieza en Rojo
                     this.timerV = 0;
                     this.timerH = 0;
                     this.cycleTimer = 0;
@@ -173,38 +174,49 @@
                         const matBlack = new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.5, metalness: 0.5 });
                         const postHeight = 16;
                         
-                        // Postes
+                        // Postes (span along local X, relative to group center)
                         const p1 = new THREE.Mesh(new THREE.BoxGeometry(1.0, postHeight, 1.0), matBlack);
-                        p1.position.set(-ROAD_WIDTH/2 - 2, postHeight/2, 0);
+                        p1.position.set(-(ROAD_WIDTH/2 + 2), postHeight/2, 0);
                         const p2 = new THREE.Mesh(new THREE.BoxGeometry(1.0, postHeight, 1.0), matBlack);
-                        p2.position.set(ROAD_WIDTH/2 + 2, postHeight/2, 0);
+                        p2.position.set((ROAD_WIDTH/2 + 2), postHeight/2, 0);
                         
-                        // Viga
+                        // Viga (spans local X, connects posts)
                         const beam = new THREE.Mesh(new THREE.BoxGeometry(ROAD_WIDTH + 6, 1.0, 1.0), matBlack);
                         beam.position.set(0, postHeight - 1, 0);
 
                         // Caja Luces
-                        const box = new THREE.Mesh(new THREE.BoxGeometry(5, 9, 2), matBlack);
-                        box.position.set(ROAD_WIDTH/4, postHeight - 6.0, -0.5);
+                        // Bulbs will face local -Z of the group
+                        const boxWidth = 5;
+                        const boxHeight = 9;
+                        const boxDepth = 2; // Depth along local Z
+
+                        const box = new THREE.Mesh(new THREE.BoxGeometry(boxWidth, boxHeight, boxDepth), matBlack);
+                        // Positioned to one side of the road (local +X) and slightly towards the "back" of the beam (local +Z)
+                        // The light's visible face will be at local -Z
+                        box.position.set(ROAD_WIDTH/4, postHeight - 6.0, boxDepth/2 - 1); 
                         
                         group.add(p1, p2, beam, box);
 
-                        // Luces
-                        const r = createBulb(); r.position.set(ROAD_WIDTH/4, postHeight - 3.5, 0.5);
-                        const y = createBulb(); y.position.set(ROAD_WIDTH/4, postHeight - 6.0, 0.5);
-                        const g = createBulb(); g.position.set(ROAD_WIDTH/4, postHeight - 8.5, 0.5);
+                        // Luces: positioned on the "face" of the box, which is local -Z
+                        const bulbOffsetZ = box.geometry.parameters.depth / 2 - 0.5; // Offset to place on the face, slightly in
+                        
+                        const r = createBulb(); r.position.set(ROAD_WIDTH/4, postHeight - 3.5, -bulbOffsetZ); // Local -Z side of box
+                        const y = createBulb(); y.position.set(ROAD_WIDTH/4, postHeight - 6.0, -bulbOffsetZ);
+                        const g = createBulb(); g.position.set(ROAD_WIDTH/4, postHeight - 8.5, -bulbOffsetZ);
                         
                         group.add(r, y, g);
                         
                         group.position.set(x, 0, z);
-                        group.rotation.y = rotation;
+                        group.rotation.y = rotation; // Apply rotation around Y-axis
                         scene.add(group);
 
                         return { r, y, g };
                     };
 
-                    this.lightsV = createStructure(0, STOP_LINE_V + 4, 0);
-                    this.lightsH = createStructure(STOP_LINE_H + 4, 0, -Math.PI/2);
+                    // Vertical light (North side of intersection, beam along World X, faces World -Z traffic)
+                    this.lightsV = createStructure(0, ROAD_WIDTH / 2, 0); 
+                    // Horizontal light (East side of intersection, beam along World Z, faces World -X traffic)
+                    this.lightsH = createStructure(ROAD_WIDTH / 2, 0, -Math.PI / 2);    
                 }
 
                 setLightColor(mesh, isActive, colorHex) {
@@ -398,32 +410,12 @@
                         dv.position.set(0, 0.02, i);
                         scene.add(dv);
 
-                        const dh = new THREE.Mesh(new THREE.PlaneGeometry(3.5, 0.5), yellow);
+                        const dh = new THREE.Mesh(new THREE.BoxGeometry(3.5, 0.5), yellow);
                         dh.rotation.x = -Math.PI/2;
                         dh.position.set(i, 0.02, 0);
                         scene.add(dh);
                     }
                 }
-
-                // Senda Peatonal (Zebra)
-                const createCrosswalk = (cx, cz, rotY) => {
-                    const g = new THREE.Group();
-                    const stripes = 7;
-                    for(let k=0; k<stripes; k++) {
-                        const s = new THREE.Mesh(new THREE.PlaneGeometry(1.2, ROAD_WIDTH-1), white);
-                        s.rotation.x = -Math.PI/2;
-                        s.position.set((k - stripes/2)*2.0, 0.03, 0);
-                        g.add(s);
-                    }
-                    g.position.set(cx, 0, cz);
-                    g.rotation.y = rotY;
-                    scene.add(g);
-                };
-
-                createCrosswalk(0, ROAD_WIDTH/2 + 5, 0); 
-                createCrosswalk(0, -ROAD_WIDTH/2 - 5, 0); 
-                createCrosswalk(ROAD_WIDTH/2 + 5, 0, Math.PI/2); 
-                createCrosswalk(-ROAD_WIDTH/2 - 5, 0, Math.PI/2); 
             }
 
             function createSensorVisuals() {
@@ -438,18 +430,18 @@
 
                 const sv = new THREE.Mesh(geo, mat);
                 sv.rotation.x = -Math.PI/2;
-                sv.position.set(0, 0.05, SENSOR_ZONE_POS);
+                sv.position.set(0, 0.05, SENSOR_ZONE_POS); // Posición ajustada
                 scene.add(sv);
 
                 const sh = new THREE.Mesh(geo, mat);
                 sh.rotation.x = -Math.PI/2;
                 sh.rotation.z = -Math.PI/2;
-                sh.position.set(SENSOR_ZONE_POS, 0.05, 0);
+                sh.position.set(SENSOR_ZONE_POS, 0.05, 0); // Posición ajustada
                 scene.add(sh);
 
                 // Objetos invisibles para trackear posición 2D
-                const tV = new THREE.Object3D(); tV.name = 'targetV'; tV.position.set(0, 0, SENSOR_ZONE_POS); scene.add(tV);
-                const tH = new THREE.Object3D(); tH.name = 'targetH'; tH.position.set(SENSOR_ZONE_POS, 0, 0); scene.add(tH);
+                const tV = new THREE.Object3D(); tV.name = 'targetV'; tV.position.set(0, 0, SENSOR_ZONE_POS); scene.add(tV); // Posición ajustada
+                const tH = new THREE.Object3D(); tH.name = 'targetH'; tH.position.set(SENSOR_ZONE_POS, 0, 0); scene.add(tH); // Posición ajustada
             }
 
             function spawnCar() {
@@ -559,8 +551,8 @@
 
                     // Freno por Semáforo
                     if (!canGo) {
-                        // Si estamos acercándonos a la línea (distStop positivo) y dentro de rango
-                        if (distStop > 0 && distStop < 60) {
+                        // Si estamos acercándonos a la línea (distStop positivo) y dentro de rango (aumentado a 75)
+                        if (distStop > 0 && distStop < 75) { 
                             if (distStop < 3) targetSpeed = 0;
                             else targetSpeed = Math.min(targetSpeed, distStop * 1.5);
                         }
@@ -606,8 +598,8 @@
                     obj.getWorldPosition(v);
                     
                     // Ajuste visual para no tapar los coches
-                    if (objName === 'targetV') v.x += 12; 
-                    if (objName === 'targetH') v.z -= 12;
+                    if (objName === 'targetV') v.x += 20; 
+                    if (objName === 'targetH') v.z -= 20; 
 
                     v.project(camera);
                     

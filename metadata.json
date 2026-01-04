@@ -1,5 +1,5 @@
 {
-  "name": "Copy of Simulación de Cruce de Tráfico Inteligente",
-  "description": "Una simulación de un cruce de tráfico en 3D utilizando Three.js y React. El sistema de semáforos se controla mediante un algoritmo de prioridad por volumen basado en sensores virtuales para optimizar el flujo de vehículos y minimizar los tiempos de espera.",
+  "name": "Traffic Simulation",
+  "description": "A Three.js traffic simulation web application with intelligent and manual traffic light control.",
   "requestFramePermissions": []
 }

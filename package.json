@@ -1,5 +1,5 @@
 {
-  "name": "copy-of-simulación-de-cruce-de-tráfico-inteligente",
+  "name": "traffic-simulation",
   "private": true,
   "version": "0.0.0",
   "type": "module",
@@ -9,8 +9,10 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "three": "^0.182.0",
     "react": "^19.2.3",
-    "three": "^0.182.0"
+    "react-dom": "^19.2.3",
+    "@google/genai": "^1.34.0"
   },
   "devDependencies": {
     "@types/node": "^22.14.0",
