@@ -123,8 +123,9 @@
             const STOP_LINE_V = ROAD_WIDTH / 2 + 10; // 11 + 10 = 21
             const STOP_LINE_H = ROAD_WIDTH / 2 + 10; // 11 + 10 = 21
 
-            const SENSOR_ZONE_POS = 30; // Posición central de la zona de detección
+            // --- AQUI EL CAMBIO: SENSOR_ZONE_POS AHORA SE CALCULA PARA QUE SU FINAL COINCIDA CON LA LÍNEA DE DETENCIÓN ---
             const SENSOR_ZONE_LEN = 40; // Longitud de la zona de detección
+            const SENSOR_ZONE_POS = STOP_LINE_V + SENSOR_ZONE_LEN / 2; // El centro de la zona de detección se mueve para que su borde más cercano esté en STOP_LINE_V
 
             const CAR_LENGTH = 4.5;
             const SAFETY_GAP = 4.0; 
@@ -436,64 +437,89 @@
                 const yellow = new THREE.MeshBasicMaterial({ color: 0xfacc15 });
                 const white = new THREE.MeshBasicMaterial({ color: 0xffffff });
 
-                const dashGeometry = new THREE.PlaneGeometry(0.5, 3.5); // Geometría para las líneas discontinuas
+                const lineThickness = 0.5; // Grosor para todas las líneas
 
-                // Centrales (Amarillas Discontinuas)
-                for(let i = -ROAD_LENGTH/2; i < ROAD_LENGTH/2; i+=7) {
-                    // Las líneas amarillas paran 3 unidades antes de la línea de detención
-                    if (Math.abs(i) > STOP_LINE_V + 3) { 
-                        const dv = new THREE.Mesh(dashGeometry, yellow);
-                        dv.rotation.x = -Math.PI/2;
-                        dv.position.set(0, 0.02, i);
-                        scene.add(dv);
+                // --- 1. Líneas Amarillas Centrales Sólidas ---
+                // Longitud de un segmento de línea fuera de la intersección
+                const yellowSegmentLength = (ROAD_LENGTH / 2) - (ROAD_WIDTH / 2); 
+                // Punto medio de un segmento para posicionarlo
+                const yellowMidpointOffset = (ROAD_LENGTH / 2 + ROAD_WIDTH / 2) / 2; 
 
-                        const dh = new THREE.Mesh(new THREE.BoxGeometry(3.5, 0.5), yellow);
-                        dh.rotation.x = -Math.PI/2;
-                        dh.position.set(i, 0.02, 0);
-                        scene.add(dh);
-                    }
-                }
+                // Carreteras verticales (eje Z)
+                const yellowLineV_North = new THREE.Mesh(new THREE.PlaneGeometry(lineThickness, yellowSegmentLength), yellow);
+                yellowLineV_North.rotation.x = -Math.PI / 2;
+                yellowLineV_North.position.set(0, 0.02, yellowMidpointOffset);
+                scene.add(yellowLineV_North);
+
+                const yellowLineV_South = new THREE.Mesh(new THREE.PlaneGeometry(lineThickness, yellowSegmentLength), yellow);
+                yellowLineV_South.rotation.x = -Math.PI / 2;
+                yellowLineV_South.position.set(0, 0.02, -yellowMidpointOffset);
+                scene.add(yellowLineV_South);
+
+                // Carreteras horizontales (eje X)
+                const yellowLineH_East = new THREE.Mesh(new THREE.PlaneGeometry(yellowSegmentLength, lineThickness), yellow);
+                yellowLineH_East.rotation.x = -Math.PI / 2;
+                yellowLineH_East.position.set(yellowMidpointOffset, 0.02, 0);
+                scene.add(yellowLineH_East);
+
+                const yellowLineH_West = new THREE.Mesh(new THREE.PlaneGeometry(yellowSegmentLength, lineThickness), yellow);
+                yellowLineH_West.rotation.x = -Math.PI / 2;
+                yellowLineH_West.position.set(-yellowMidpointOffset, 0.02, 0);
+                scene.add(yellowLineH_West);
+
+
+                // --- 2. Líneas Blancas Discontinuas de Separación de Carriles ---
+                // Se eliminó el código que generaba estas líneas para simplificar la señalización.
+
+
+                // --- 3. Líneas Blancas Exteriores Sólidas (Bordes de la Calzada) ---
+                const edgeLineSegmentLength = yellowSegmentLength; // Misma longitud que las líneas amarillas centrales
+                const edgeLineMidpointOffset = yellowMidpointOffset; // Mismo punto medio
+
+                // Carreteras verticales (en x = +/- ROAD_WIDTH/2)
+                const whiteEdgeLineV_EastNorth = new THREE.Mesh(new THREE.PlaneGeometry(lineThickness, edgeLineSegmentLength), white);
+                whiteEdgeLineV_EastNorth.rotation.x = -Math.PI / 2;
+                whiteEdgeLineV_EastNorth.position.set(ROAD_WIDTH / 2, 0.02, edgeLineMidpointOffset);
+                scene.add(whiteEdgeLineV_EastNorth);
+
+                const whiteEdgeLineV_WestNorth = new THREE.Mesh(new THREE.PlaneGeometry(lineThickness, edgeLineSegmentLength), white);
+                whiteEdgeLineV_WestNorth.rotation.x = -Math.PI / 2;
+                whiteEdgeLineV_WestNorth.position.set(-ROAD_WIDTH / 2, 0.02, edgeLineMidpointOffset);
+                scene.add(whiteEdgeLineV_WestNorth);
+
+                const whiteEdgeLineV_EastSouth = new THREE.Mesh(new THREE.PlaneGeometry(lineThickness, edgeLineSegmentLength), white);
+                whiteEdgeLineV_EastSouth.rotation.x = -Math.PI / 2;
+                whiteEdgeLineV_EastSouth.position.set(ROAD_WIDTH / 2, 0.02, -edgeLineMidpointOffset);
+                scene.add(whiteEdgeLineV_EastSouth);
+
+                const whiteEdgeLineV_WestSouth = new THREE.Mesh(new THREE.PlaneGeometry(lineThickness, edgeLineSegmentLength), white);
+                whiteEdgeLineV_WestSouth.rotation.x = -Math.PI / 2;
+                whiteEdgeLineV_WestSouth.position.set(-ROAD_WIDTH / 2, 0.02, -edgeLineMidpointOffset);
+                scene.add(whiteEdgeLineV_WestSouth);
+
+
+                // Carreteras horizontales (en z = +/- ROAD_WIDTH/2)
+                const whiteEdgeLineH_NorthEast = new THREE.Mesh(new THREE.PlaneGeometry(edgeLineSegmentLength, lineThickness), white);
+                whiteEdgeLineH_NorthEast.rotation.x = -Math.PI / 2;
+                whiteEdgeLineH_NorthEast.position.set(edgeLineMidpointOffset, 0.02, ROAD_WIDTH / 2);
+                scene.add(whiteEdgeLineH_NorthEast);
+
+                const whiteEdgeLineH_SouthEast = new THREE.Mesh(new THREE.PlaneGeometry(edgeLineSegmentLength, lineThickness), white);
+                whiteEdgeLineH_SouthEast.rotation.x = -Math.PI / 2;
+                whiteEdgeLineH_SouthEast.position.set(edgeLineMidpointOffset, 0.02, -ROAD_WIDTH / 2);
+                scene.add(whiteEdgeLineH_SouthEast);
+
+                const whiteEdgeLineH_NorthWest = new THREE.Mesh(new THREE.PlaneGeometry(edgeLineSegmentLength, lineThickness), white);
+                whiteEdgeLineH_NorthWest.rotation.x = -Math.PI / 2;
+                whiteEdgeLineH_NorthWest.position.set(-edgeLineMidpointOffset, 0.02, ROAD_WIDTH / 2);
+                scene.add(whiteEdgeLineH_NorthWest);
+
+                const whiteEdgeLineH_SouthWest = new THREE.Mesh(new THREE.PlaneGeometry(edgeLineSegmentLength, lineThickness), white);
+                whiteEdgeLineH_SouthWest.rotation.x = -Math.PI / 2;
+                whiteEdgeLineH_SouthWest.position.set(-edgeLineMidpointOffset, 0.02, -ROAD_WIDTH / 2);
+                scene.add(whiteEdgeLineH_SouthWest);
                 
-                // Líneas de Aproximación Continuas Blancas (estilo Cebra)
-                const approachStripeGeoV = new THREE.PlaneGeometry(ROAD_WIDTH - 2, STRIPE_DEPTH); // Vertical stripes
-                const approachStripeGeoH = new THREE.PlaneGeometry(STRIPE_DEPTH, ROAD_WIDTH - 2); // Horizontal stripes (for X-axis roads)
-
-                // Define offsets for the center of these stripes from the STOP_LINE
-                const APPROACH_STRIPE_OFFSETS = [3, 6, 9]; // Centers at 3, 6, 9 units from STOP_LINE towards intersection
-
-                // North approach (Vertical, +Z to -Z)
-                APPROACH_STRIPE_OFFSETS.forEach(offset => {
-                    const stripe = new THREE.Mesh(approachStripeGeoV, white);
-                    stripe.rotation.x = -Math.PI / 2;
-                    stripe.position.set(0, 0.02, STOP_LINE_V - offset);
-                    scene.add(stripe);
-                });
-
-                // South approach (Vertical, -Z to +Z)
-                APPROACH_STRIPE_OFFSETS.forEach(offset => {
-                    const stripe = new THREE.Mesh(approachStripeGeoV, white);
-                    stripe.rotation.x = -Math.PI / 2;
-                    stripe.position.set(0, 0.02, -STOP_LINE_V + offset);
-                    scene.add(stripe);
-                });
-
-                // East approach (Horizontal, +X to -X)
-                APPROACH_STRIPE_OFFSETS.forEach(offset => {
-                    const stripeH = new THREE.Mesh(approachStripeGeoH, white);
-                    stripeH.rotation.x = -Math.PI / 2;
-                    stripeH.position.set(STOP_LINE_H - offset, 0.02, 0);
-                    scene.add(stripeH);
-                });
-
-                // West approach (Horizontal, -X to +X)
-                APPROACH_STRIPE_OFFSETS.forEach(offset => {
-                    const stripeH = new THREE.Mesh(approachStripeGeoH, white);
-                    stripeH.rotation.x = -Math.PI / 2;
-                    stripeH.position.set(-STOP_LINE_H + offset, 0.02, 0);
-                    scene.add(stripeH);
-                });
-                
-                // Líneas de detención (solid white lines before crosswalks)
+                // Líneas de detención (solid white lines before crosswalks) - Mantenemos estas tal cual
                 const stopLineMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
                 const stopLineGeoV = new THREE.PlaneGeometry(ROAD_WIDTH - 2, 1); // Ancho de carretera - márgenes
                 const stopLineGeoH = new THREE.PlaneGeometry(1, ROAD_WIDTH - 2);
@@ -528,7 +554,7 @@
                 const stripeDepth = STRIPE_DEPTH; 
                 const gapBetweenStripes = GAP_BETWEEN_STRIPES; 
                 const numStripes = NUM_STRIPES; 
-                const totalCrosswalkLength = TOTAL_CROSSWALK_LENGTH; 
+                const totalCrosswalkLength = NUM_STRIPES * STRIPE_DEPTH + (NUM_STRIPES - 1) * GAP_BETWEEN_STRIPES; 
 
                 const stripeGeo = new THREE.PlaneGeometry(stripeWidth, stripeDepth);
 
@@ -731,6 +757,7 @@
             }
 
             function updateCounters() {
+                // vMin ahora será STOP_LINE_V y vMax será STOP_LINE_V + SENSOR_ZONE_LEN
                 const vMin = SENSOR_ZONE_POS - SENSOR_ZONE_LEN/2;
                 const vMax = SENSOR_ZONE_POS + SENSOR_ZONE_LEN/2;
                 
