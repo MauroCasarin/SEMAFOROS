@@ -110,13 +110,21 @@
             // --- CONFIGURACIÓN ---
             const ROAD_WIDTH = 22;
             const ROAD_LENGTH = 220; 
-            const LANE_WIDTH = ROAD_WIDTH / 4;
+            const LANE_WIDTH = ROAD_WIDTH / 4; // 5.5
             const SIMULATION_SPEED = 0.3; // Velocidad de simulación
             
-            const STOP_LINE_V = 22; 
-            const STOP_LINE_H = 22; 
-            const SENSOR_ZONE_POS = 30; // Ajustado: más cerca de la intersección
-            const SENSOR_ZONE_LEN = 40; 
+            // Dimensiones de las sendas peatonales (pasos de cebra)
+            const STRIPE_DEPTH = 1.0; // Profundidad de cada franja blanca
+            const GAP_BETWEEN_STRIPES = 0.5; // Espacio entre las franjas blancas
+            const NUM_STRIPES = 6; // Número de franjas por paso de cebra
+            const TOTAL_CROSSWALK_LENGTH = NUM_STRIPES * STRIPE_DEPTH + (NUM_STRIPES - 1) * GAP_BETWEEN_STRIPES; // 6 * 1.0 + 5 * 0.5 = 8.5
+
+            // Ajuste: las líneas de detención se mueven para estar JUSTO ANTES de los pasos de cebra.
+            const STOP_LINE_V = ROAD_WIDTH / 2 + 10; // 11 + 10 = 21
+            const STOP_LINE_H = ROAD_WIDTH / 2 + 10; // 11 + 10 = 21
+
+            const SENSOR_ZONE_POS = 30; // Posición central de la zona de detección
+            const SENSOR_ZONE_LEN = 40; // Longitud de la zona de detección
 
             const CAR_LENGTH = 4.5;
             const SAFETY_GAP = 4.0; 
@@ -150,89 +158,104 @@
                     this.timerH = 0;
                     this.cycleTimer = 0;
                     this.transitioning = false;
+                    this.flashTimerV = 0; // Temporizador para el flasheo de la luz amarilla vertical
+                    this.flashTimerH = 0; // Temporizador para el flasheo de la luz amarilla horizontal
 
                     // Tiempos (segundos simulados)
-                    this.MIN_GREEN = 4.0;
+                    this.MIN_GREEN = 3.0; // Más rápido
                     this.MAX_GREEN = 12.0;
-                    this.YELLOW_TIME = 2.0;
-                    this.FIXED_TIME = 6.0;
+                    this.YELLOW_TIME = 1.0; // Más rápido
+                    this.FIXED_TIME = 5.0; // Más rápido
 
-                    this.buildInfrastructure(scene);
-                    this.updateVisuals();
+                    this.buildInfrastructure(scene); 
+                    this.updateVisuals(0); // Pasa 0 para la inicialización          
                 }
 
                 buildInfrastructure(scene) {
+                    // Luz un poco más grande
                     const createBulb = () => new THREE.Mesh(
-                        new THREE.SphereGeometry(2.0, 16, 16),
+                        new THREE.SphereGeometry(2.0, 16, 16), // Incrementado de 1.5 a 2.0
                         new THREE.MeshBasicMaterial({ color: 0x111111 }) 
                     );
 
-                    const createStructure = (x, z, rotation) => {
+                    // Función para crear un semáforo detallado con un solo foco cambiante
+                    const createDetailedTrafficLight = (x, z, rotation) => {
                         const group = new THREE.Group();
                         
-                        // Material Negro para postes
                         const matBlack = new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.5, metalness: 0.5 });
-                        const postHeight = 16;
+                        const poleHeight = 25; 
                         
-                        // Postes (span along local X, relative to group center)
-                        const p1 = new THREE.Mesh(new THREE.BoxGeometry(1.0, postHeight, 1.0), matBlack);
-                        p1.position.set(-(ROAD_WIDTH/2 + 2), postHeight/2, 0);
-                        const p2 = new THREE.Mesh(new THREE.BoxGeometry(1.0, postHeight, 1.0), matBlack);
-                        p2.position.set((ROAD_WIDTH/2 + 2), postHeight/2, 0);
-                        
-                        // Viga (spans local X, connects posts)
-                        const beam = new THREE.Mesh(new THREE.BoxGeometry(ROAD_WIDTH + 6, 1.0, 1.0), matBlack);
-                        beam.position.set(0, postHeight - 1, 0);
+                        // Poste (Cilindro)
+                        const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.8, 0.8, poleHeight, 16), matBlack); 
+                        pole.position.y = poleHeight / 2;
+                        pole.castShadow = true;
+                        group.add(pole);
 
-                        // Caja Luces
-                        // Bulbs will face local -Z of the group
-                        const boxWidth = 5;
-                        const boxHeight = 9;
-                        const boxDepth = 2; // Depth along local Z
+                        // Carcasa principal del semáforo
+                        const housingWidth = 5;
+                        const housingHeight = 10; // Altura más compacta para un solo foco
+                        const housingDepth = 3;
 
-                        const box = new THREE.Mesh(new THREE.BoxGeometry(boxWidth, boxHeight, boxDepth), matBlack);
-                        // Positioned to one side of the road (local +X) and slightly towards the "back" of the beam (local +Z)
-                        // The light's visible face will be at local -Z
-                        box.position.set(ROAD_WIDTH/4, postHeight - 6.0, boxDepth/2 - 1); 
-                        
-                        group.add(p1, p2, beam, box);
+                        const housing = new THREE.Mesh(new THREE.BoxGeometry(housingWidth, housingHeight, housingDepth), matBlack);
+                        housing.position.set(0, poleHeight - 2 - (housingHeight / 2), 0.5); 
+                        housing.castShadow = true;
+                        group.add(housing);
 
-                        // Luces: positioned on the "face" of the box, which is local -Z
-                        const bulbOffsetZ = box.geometry.parameters.depth / 2 - 0.5; // Offset to place on the face, slightly in
-                        
-                        const r = createBulb(); r.position.set(ROAD_WIDTH/4, postHeight - 3.5, -bulbOffsetZ); // Local -Z side of box
-                        const y = createBulb(); y.position.set(ROAD_WIDTH/4, postHeight - 6.0, -bulbOffsetZ);
-                        const g = createBulb(); g.position.set(ROAD_WIDTH/4, postHeight - 8.5, -bulbOffsetZ);
-                        
-                        group.add(r, y, g);
+                        // Única luz central
+                        const bulbZPos = housingDepth / 2 + 0.5; 
+                        const mainLight = createBulb(); 
+                        mainLight.position.set(0, 0, -bulbZPos); // Centrada verticalmente en la carcasa
+                        housing.add(mainLight);
+
+                        // Visor alrededor de la luz
+                        const visorGeo = new THREE.BoxGeometry(housingWidth + 0.5, 0.5, 2.5); 
+                        const visorMat = matBlack;
+                        const visorZPos = housingDepth / 2 + 0.2; 
+                        const visorYOffset = 2.5; // Offset desde el centro de la bombilla hasta la parte inferior del visor
+
+                        const mainVisor = new THREE.Mesh(visorGeo, visorMat);
+                        mainVisor.position.set(0, mainLight.position.y + visorYOffset, -visorZPos);
+                        housing.add(mainVisor);
                         
                         group.position.set(x, 0, z);
-                        group.rotation.y = rotation; // Apply rotation around Y-axis
+                        group.rotation.y = rotation; 
                         scene.add(group);
 
-                        return { r, y, g };
+                        return mainLight; // Retorna la luz principal para control de color
                     };
 
-                    // Vertical light (North side of intersection, beam along World X, faces World -Z traffic)
-                    this.lightsV = createStructure(0, ROAD_WIDTH / 2, 0); 
-                    // Horizontal light (East side of intersection, beam along World Z, faces World -X traffic)
-                    this.lightsH = createStructure(ROAD_WIDTH / 2, 0, -Math.PI / 2);    
+                    // Semáforo Vertical (Tráfico desde Norte a Sur) - Posición "fuera de la calle", a la derecha
+                    // Más al Este y más al Norte de la intersección.
+                    // Rotación cambiada a Math.PI para que apunte al Norte (dirección +Z)
+                    this.lightsV = createDetailedTrafficLight(ROAD_WIDTH / 2 + 2, ROAD_WIDTH / 2 + 3, Math.PI); 
+                    // Semáforo Horizontal (Tráfico desde Este a Oeste) - Posición "fuera de la calle", a la derecha
+                    // Más al Este y más al Sur de la intersección.
+                    this.lightsH = createDetailedTrafficLight(ROAD_WIDTH / 2 + 3, -ROAD_WIDTH / 2 - 2, -Math.PI / 2);
                 }
 
-                setLightColor(mesh, isActive, colorHex) {
-                    mesh.material.color.setHex(isActive ? colorHex : 0x222222);
+                // Método para establecer el color de la luz del semáforo, incluyendo flasheo
+                setLightColor(mesh, state, flashTimer) {
+                    let colorHex = 0x222222; // Color 'apagado' por defecto
+                    const FLASH_RATE = 5; // Frecuencia de flasheo en Hz (5 veces por segundo)
+
+                    if (state === LightState.RED) colorHex = 0xff0000;
+                    else if (state === LightState.GREEN) colorHex = 0x00ff00;
+                    else if (state === LightState.YELLOW) {
+                        // Lógica de flasheo para el amarillo
+                        if (Math.floor(flashTimer * FLASH_RATE) % 2 === 0) {
+                            colorHex = 0xffaa00; // Amarillo
+                        } else {
+                            colorHex = 0x222222; // Apagado
+                        }
+                    }
+                    mesh.material.color.setHex(colorHex);
                 }
 
                 updateVisuals() {
-                    // Semáforo Vertical
-                    this.setLightColor(this.lightsV.r, this.stateV === LightState.RED, 0xff0000);
-                    this.setLightColor(this.lightsV.y, this.stateV === LightState.YELLOW, 0xffaa00);
-                    this.setLightColor(this.lightsV.g, this.stateV === LightState.GREEN, 0x00ff00);
-
-                    // Semáforo Horizontal
-                    this.setLightColor(this.lightsH.r, this.stateH === LightState.RED, 0xff0000);
-                    this.setLightColor(this.lightsH.y, this.stateH === LightState.YELLOW, 0xffaa00);
-                    this.setLightColor(this.lightsH.g, this.stateH === LightState.GREEN, 0x00ff00);
+                    // Actualiza el color del foco único del semáforo vertical
+                    this.setLightColor(this.lightsV, this.stateV, this.flashTimerV);
+                    // Actualiza el color del foco único del semáforo horizontal
+                    this.setLightColor(this.lightsH, this.stateH, this.flashTimerH);
                 }
 
                 switchLight(targetStreet) {
@@ -243,10 +266,16 @@
 
                     this.transitioning = true;
                     
-                    // Fase Amarillo
-                    if (this.stateV === LightState.GREEN) this.stateV = LightState.YELLOW;
-                    if (this.stateH === LightState.GREEN) this.stateH = LightState.YELLOW;
-                    this.updateVisuals();
+                    // Fase Amarillo para la calle que estaba en verde
+                    if (this.stateV === LightState.GREEN) {
+                        this.stateV = LightState.YELLOW;
+                        this.flashTimerV = 0; // Reinicia el temporizador de flasheo
+                    }
+                    if (this.stateH === LightState.GREEN) {
+                        this.stateH = LightState.YELLOW;
+                        this.flashTimerH = 0; // Reinicia el temporizador de flasheo
+                    }
+                    this.updateVisuals(); 
 
                     setTimeout(() => {
                         this.stateV = LightState.RED;
@@ -258,7 +287,7 @@
                         this.timerV = 0;
                         this.timerH = 0;
                         this.transitioning = false;
-                        this.updateVisuals();
+                        this.updateVisuals(); 
                     }, this.YELLOW_TIME * 1000 / SIMULATION_SPEED);
                 }
 
@@ -267,6 +296,10 @@
 
                     if (this.stateV === LightState.GREEN) this.timerV += dt;
                     if (this.stateH === LightState.GREEN) this.timerH += dt;
+
+                    // Actualizar flash timers si están en amarillo
+                    if (this.stateV === LightState.YELLOW) this.flashTimerV += dt;
+                    if (this.stateH === LightState.YELLOW) this.flashTimerH += dt;
 
                     if (isSmartMode) {
                         // Modo Inteligente: Prioridad por demanda
@@ -342,8 +375,9 @@
 
                 // 5. Mundo
                 createRoads();
+                createCrosswalks(); // Añadido: Crear sendas peatonales
                 createSensorVisuals();
-                controller = new TrafficController(scene);
+                controller = new TrafficController(scene); 
 
                 // 6. Eventos UI
                 window.addEventListener('resize', onResize);
@@ -402,10 +436,13 @@
                 const yellow = new THREE.MeshBasicMaterial({ color: 0xfacc15 });
                 const white = new THREE.MeshBasicMaterial({ color: 0xffffff });
 
-                // Centrales
+                const dashGeometry = new THREE.PlaneGeometry(0.5, 3.5); // Geometría para las líneas discontinuas
+
+                // Centrales (Amarillas Discontinuas)
                 for(let i = -ROAD_LENGTH/2; i < ROAD_LENGTH/2; i+=7) {
-                    if (Math.abs(i) > ROAD_WIDTH/2 + 2) {
-                        const dv = new THREE.Mesh(new THREE.PlaneGeometry(0.5, 3.5), yellow);
+                    // Las líneas amarillas paran 3 unidades antes de la línea de detención
+                    if (Math.abs(i) > STOP_LINE_V + 3) { 
+                        const dv = new THREE.Mesh(dashGeometry, yellow);
                         dv.rotation.x = -Math.PI/2;
                         dv.position.set(0, 0.02, i);
                         scene.add(dv);
@@ -416,6 +453,129 @@
                         scene.add(dh);
                     }
                 }
+                
+                // Líneas de Aproximación Continuas Blancas (estilo Cebra)
+                const approachStripeGeoV = new THREE.PlaneGeometry(ROAD_WIDTH - 2, STRIPE_DEPTH); // Vertical stripes
+                const approachStripeGeoH = new THREE.PlaneGeometry(STRIPE_DEPTH, ROAD_WIDTH - 2); // Horizontal stripes (for X-axis roads)
+
+                // Define offsets for the center of these stripes from the STOP_LINE
+                const APPROACH_STRIPE_OFFSETS = [3, 6, 9]; // Centers at 3, 6, 9 units from STOP_LINE towards intersection
+
+                // North approach (Vertical, +Z to -Z)
+                APPROACH_STRIPE_OFFSETS.forEach(offset => {
+                    const stripe = new THREE.Mesh(approachStripeGeoV, white);
+                    stripe.rotation.x = -Math.PI / 2;
+                    stripe.position.set(0, 0.02, STOP_LINE_V - offset);
+                    scene.add(stripe);
+                });
+
+                // South approach (Vertical, -Z to +Z)
+                APPROACH_STRIPE_OFFSETS.forEach(offset => {
+                    const stripe = new THREE.Mesh(approachStripeGeoV, white);
+                    stripe.rotation.x = -Math.PI / 2;
+                    stripe.position.set(0, 0.02, -STOP_LINE_V + offset);
+                    scene.add(stripe);
+                });
+
+                // East approach (Horizontal, +X to -X)
+                APPROACH_STRIPE_OFFSETS.forEach(offset => {
+                    const stripeH = new THREE.Mesh(approachStripeGeoH, white);
+                    stripeH.rotation.x = -Math.PI / 2;
+                    stripeH.position.set(STOP_LINE_H - offset, 0.02, 0);
+                    scene.add(stripeH);
+                });
+
+                // West approach (Horizontal, -X to +X)
+                APPROACH_STRIPE_OFFSETS.forEach(offset => {
+                    const stripeH = new THREE.Mesh(approachStripeGeoH, white);
+                    stripeH.rotation.x = -Math.PI / 2;
+                    stripeH.position.set(-STOP_LINE_H + offset, 0.02, 0);
+                    scene.add(stripeH);
+                });
+                
+                // Líneas de detención (solid white lines before crosswalks)
+                const stopLineMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+                const stopLineGeoV = new THREE.PlaneGeometry(ROAD_WIDTH - 2, 1); // Ancho de carretera - márgenes
+                const stopLineGeoH = new THREE.PlaneGeometry(1, ROAD_WIDTH - 2);
+
+                const stopLineV_North = new THREE.Mesh(stopLineGeoV, stopLineMat);
+                stopLineV_North.rotation.x = -Math.PI / 2;
+                stopLineV_North.position.set(0, 0.02, STOP_LINE_V);
+                scene.add(stopLineV_North);
+
+                const stopLineV_South = new THREE.Mesh(stopLineGeoV, stopLineMat);
+                stopLineV_South.rotation.x = -Math.PI / 2;
+                stopLineV_South.position.set(0, 0.02, -STOP_LINE_V); // Utiliza el valor negativo para la dirección opuesta
+                scene.add(stopLineV_South);
+
+                const stopLineH_East = new THREE.Mesh(stopLineGeoH, stopLineMat);
+                stopLineH_East.rotation.x = -Math.PI / 2;
+                stopLineH_East.position.set(STOP_LINE_H, 0.02, 0);
+                scene.add(stopLineH_East);
+
+                const stopLineH_West = new THREE.Mesh(stopLineGeoH, stopLineMat);
+                stopLineH_West.rotation.x = -Math.PI / 2;
+                stopLineH_West.position.set(-STOP_LINE_H, 0.02, 0); // Utiliza el valor negativo para la dirección opuesta
+                scene.add(stopLineH_West);
+            }
+
+            // Función para crear sendas peatonales (pasos de cebra)
+            function createCrosswalks() {
+                const whiteMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+                const stripeWidth = ROAD_WIDTH - 4; // Ancho de la franja a lo largo de la carretera
+                
+                // Usar las constantes definidas globalmente
+                const stripeDepth = STRIPE_DEPTH; 
+                const gapBetweenStripes = GAP_BETWEEN_STRIPES; 
+                const numStripes = NUM_STRIPES; 
+                const totalCrosswalkLength = TOTAL_CROSSWALK_LENGTH; 
+
+                const stripeGeo = new THREE.PlaneGeometry(stripeWidth, stripeDepth);
+
+                // Función auxiliar para crear un solo paso de cebra
+                const addCrosswalk = (centerX, centerZ, rotationY) => {
+                    const crosswalkGroup = new THREE.Group();
+                    for (let i = 0; i < numStripes; i++) {
+                        const stripe = new THREE.Mesh(stripeGeo, whiteMat);
+                        stripe.position.y = 0.03; // Ligeramente por encima de la carretera
+                        
+                        // Calcula la posición relativa de cada franja dentro del grupo
+                        // Las franjas se distribuyen simétricamente alrededor del centro del grupo
+                        const stripeOffset = -(totalCrosswalkLength / 2) + (stripeDepth / 2) + i * (stripeDepth + gapBetweenStripes);
+                        stripe.position.z = stripeOffset; // Alineación por defecto a lo largo del eje Z para el grupo sin rotar
+
+                        crosswalkGroup.add(stripe);
+                    }
+                    crosswalkGroup.position.set(centerX, 0, centerZ);
+                    crosswalkGroup.rotation.y = rotationY;
+                    scene.add(crosswalkGroup);
+                };
+
+                const intersectionHalfWidth = ROAD_WIDTH / 2; // 11 unidades
+                
+                // Calcular el desplazamiento del centro del paso de cebra para que su borde más cercano esté en intersectionHalfWidth
+                // Y se extienda hacia el centro de la intersección.
+                const offsetFromIntersectionEdge = totalCrosswalkLength / 2;
+
+                // Paso de Cebra Norte (tráfico de +Z a -Z)
+                // Su borde más cercano estará en z = intersectionHalfWidth.
+                // Su centro estará en z = intersectionHalfWidth - offsetFromIntersectionEdge.
+                addCrosswalk(0, intersectionHalfWidth - offsetFromIntersectionEdge, 0); 
+                
+                // Paso de Cebra Sur (tráfico de -Z a +Z)
+                // Su borde más cercano estará en z = -intersectionHalfWidth.
+                // Su centro estará en z = -intersectionHalfWidth + offsetFromIntersectionEdge.
+                addCrosswalk(0, -intersectionHalfWidth + offsetFromIntersectionEdge, 0);
+
+                // Paso de Cebra Este (tráfico de +X a -X)
+                // Su borde más cercano estará en x = intersectionHalfWidth.
+                // Su centro estará en x = intersectionHalfWidth - offsetFromIntersectionEdge.
+                addCrosswalk(intersectionHalfWidth - offsetFromIntersectionEdge, 0, Math.PI / 2);
+                
+                // Paso de Cebra Oeste (tráfico de -X a +X)
+                // Su borde más cercano estará en x = -intersectionHalfWidth.
+                // Su centro estará en x = -intersectionHalfWidth + offsetFromIntersectionEdge.
+                addCrosswalk(-intersectionHalfWidth + offsetFromIntersectionEdge, 0, Math.PI / 2);
             }
 
             function createSensorVisuals() {
@@ -457,11 +617,11 @@
                 let x=0, z=0, rot=0;
 
                 if (street === Street.VERTICAL) {
-                    z = ROAD_LENGTH / 2 + 5; // Spawn bien afuera
+                    z = ROAD_LENGTH / 2 + 5 + (Math.random() - 0.5) * 5; // Añadida aleatoriedad
                     x = (lane === 0 ? LANE_WIDTH/2 : LANE_WIDTH*1.5);
                     rot = Math.PI; 
                 } else {
-                    x = ROAD_LENGTH / 2 + 5; 
+                    x = ROAD_LENGTH / 2 + 5 + (Math.random() - 0.5) * 5; // Añadida aleatoriedad
                     z = (lane === 0 ? -LANE_WIDTH/2 : -LANE_WIDTH*1.5); 
                     rot = -Math.PI/2; 
                 }
@@ -500,7 +660,7 @@
                     street: street,
                     lane: lane,
                     speed: 0,
-                    maxSpeed: 25 + Math.random()*15, // Velocidad variada
+                    maxSpeed: 35 + Math.random()*30, // Velocidad variada: de 35 a 65
                     accel: 15.0
                 });
             }
@@ -623,17 +783,18 @@
                 
                 // Spawn
                 spawnTimer += dt;
-                // Intervalo basado en densidad (100% = rapido, 1% = lento)
-                const interval = 3.5 - (density/100 * 3.2); 
+                // Intervalo basado en densidad (100% = rapido, 1% = lento) con aleatoriedad
+                const interval = (1.0 - (density / 100 * 0.95)) * (0.8 + Math.random() * 0.4); 
                 if (spawnTimer > interval) {
                     spawnTimer = 0;
-                    if(cars.length < 50) spawnCar();
+                    if(cars.length < 150) spawnCar(); // Aumentado el límite de autos a 150
                 }
 
                 updateCars(dt);
                 const counts = updateCounters();
                 controller.updateLogic(dt, counts.cV, counts.cH);
-                
+                controller.updateVisuals(); // Llamar updateVisuals en cada frame
+
                 updateUIProject();
                 renderer.render(scene, camera);
             }
