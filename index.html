@@ -129,7 +129,7 @@
             // Enumeraciones
             const Street = { VERTICAL: 'VERTICAL', HORIZONTAL: 'HORIZONTAL' };
             const LightState = { RED: 'RED', YELLOW: 'YELLOW', GREEN: 'GREEN' };
-            const TurnIntent = { STRAIGHT: 'STRAIGHT', RIGHT: 'RIGHT' };
+            const TurnIntent = { STRAIGHT: 'STRAIGHT', RIGHT: 'RIGHT', LEFT: 'LEFT' };
 
 
             // Variables Globales
@@ -579,8 +579,8 @@
                     const labels = [
                         // ARRIBA (Screen Top / World +Z due to 180 camera rot)
                         // AV1 (Left/+X), AV2 (Right/-X)
-                        { t: 'AV1', p: [6, 0.1, 16], r: Math.PI },
-                        { t: 'AV2', p: [-6, 0.1, 16], r: Math.PI },
+                        { t: 'AV1', p: [5.5, 0.1, 16], r: Math.PI },
+                        { t: 'AV2', p: [-5.5, 0.1, 16], r: Math.PI },
 
                         // ABAJO (Screen Bottom / World -Z)
                         // AV6 (Left/+X), AV5 (Right/-X)
@@ -598,7 +598,8 @@
                         { t: 'AV4', p: [-14, 0.1, -6], r: Math.PI }
                     ];
                     labels.forEach(l => {
-                        const geo = new THREE.TextGeometry(l.t, { font: font, size: 2.5, height: 0.1 });
+                        const geo = new THREE.TextGeometry(l.t, { font: font, size: 2.5, height: 0.1, bevelEnabled: false });
+                        geo.center();
                         const mesh = new THREE.Mesh(geo, mat);
                         mesh.rotation.x = -Math.PI / 2;
                         mesh.rotation.z = l.r; 
@@ -625,24 +626,34 @@
                 
                 let lane;
                 let turnIntent;
-                if (Math.random() < 0.3) { 
-                    turnIntent = TurnIntent.RIGHT;
-                    lane = 0; 
-                } else { 
-                    turnIntent = TurnIntent.STRAIGHT;
-                    lane = Math.random() > 0.5 ? 0 : 1; 
-                }
-                
                 let x=0, z=0, rot=0;
 
                 if (street === Street.VERTICAL) {
-                    z = ROAD_LENGTH / 2 + 5 + (Math.random() - 0.5) * 5; 
+                    z = ROAD_LENGTH / 2 + 5 + (Math.random() - 0.5) * 5;
+                    const turnRand = Math.random();
+                    if (turnRand < 0.3) { // 30% Right
+                        turnIntent = TurnIntent.RIGHT;
+                        lane = 0; // Outer lane
+                    } else if (turnRand < 0.6) { // 30% Left
+                        turnIntent = TurnIntent.LEFT;
+                        lane = 1; // Inner lane
+                    } else { // 40% Straight
+                        turnIntent = TurnIntent.STRAIGHT;
+                        lane = Math.random() > 0.5 ? 0 : 1;
+                    }
                     x = (lane === 0 ? LANE_OUTER_OFFSET : LANE_INNER_OFFSET);
-                    rot = 0; 
+                    rot = 0;
                 } else { // HORIZONTAL
-                    x = ROAD_LENGTH / 2 + 5 + (Math.random() - 0.5) * 5; 
-                    z = (lane === 0 ? -LANE_OUTER_OFFSET : -LANE_INNER_OFFSET); // Only spawn on negative Z lanes (AV7)
-                    rot = Math.PI / 2; 
+                    x = ROAD_LENGTH / 2 + 5 + (Math.random() - 0.5) * 5;
+                    if (Math.random() < 0.3) {
+                        turnIntent = TurnIntent.RIGHT;
+                        lane = 0;
+                    } else {
+                        turnIntent = TurnIntent.STRAIGHT;
+                        lane = Math.random() > 0.5 ? 0 : 1;
+                    }
+                    z = (lane === 0 ? -LANE_OUTER_OFFSET : -LANE_INNER_OFFSET);
+                    rot = Math.PI / 2;
                 }
 
                 const safe = cars.every(c => {
@@ -709,7 +720,7 @@
                     const INTERSECTION_HALF_WIDTH = ROAD_WIDTH / 2;
 
                     // 1. DETECCIÓN DE GIRO
-                    if (!c.isTurning && c.turnIntent === TurnIntent.RIGHT) {
+                    if (!c.isTurning && (c.turnIntent === TurnIntent.RIGHT || (c.turnIntent === TurnIntent.LEFT && c.street === Street.VERTICAL))) {
                         const inZone = (c.street === Street.VERTICAL && c.mesh.position.z < INTERSECTION_HALF_WIDTH && c.mesh.position.z > -INTERSECTION_HALF_WIDTH) ||
                                        (c.street === Street.HORIZONTAL && c.mesh.position.x < INTERSECTION_HALF_WIDTH && c.mesh.position.x > -INTERSECTION_HALF_WIDTH);
                         if (inZone) {
@@ -795,24 +806,41 @@
 
                     // Ejecutar Giro Físico
                     if (c.isTurning) {
-                        const turnRadius = LANE_OUTER_OFFSET;
-                        const deltaYaw = (move / turnRadius);
-                        
-                        if (c.rotatedAngle < Math.PI / 2) {
-                            c.mesh.rotation.y -= deltaYaw;
-                            c.rotatedAngle += deltaYaw;
-                        } else {
-                            c.isTurning = false;
-                            c.turnIntent = TurnIntent.STRAIGHT;
-                            if (c.street === Street.VERTICAL) {
-                                c.mesh.rotation.y = -Math.PI / 2;
-                                c.street = Street.HORIZONTAL;
+                        if (c.turnIntent === TurnIntent.RIGHT) {
+                            const turnRadius = LANE_OUTER_OFFSET;
+                            const deltaYaw = (move / turnRadius);
+                            
+                            if (c.rotatedAngle < Math.PI / 2) {
+                                c.mesh.rotation.y -= deltaYaw;
+                                c.rotatedAngle += deltaYaw;
                             } else {
-                                c.mesh.rotation.y = 0;
-                                c.street = Street.VERTICAL;
+                                c.isTurning = false;
+                                c.turnIntent = TurnIntent.STRAIGHT;
+                                if (c.street === Street.VERTICAL) {
+                                    c.mesh.rotation.y = -Math.PI / 2;
+                                    c.street = Street.HORIZONTAL;
+                                } else {
+                                    c.mesh.rotation.y = 0;
+                                    c.street = Street.VERTICAL;
+                                }
+                                c.rotatedAngle = 0;
+                                c.isEntryTraffic = false; 
                             }
-                            c.rotatedAngle = 0;
-                            c.isEntryTraffic = false; 
+                        } else if (c.turnIntent === TurnIntent.LEFT && c.street === Street.VERTICAL) {
+                            const turnRadius = LANE_OUTER_OFFSET + LANE_WIDTH / 2;
+                            const deltaYaw = (move / turnRadius);
+
+                            if (c.rotatedAngle < Math.PI / 2) {
+                                c.mesh.rotation.y += deltaYaw; // Counter-clockwise for left turn
+                                c.rotatedAngle += deltaYaw;
+                            } else {
+                                c.isTurning = false;
+                                c.turnIntent = TurnIntent.STRAIGHT;
+                                c.mesh.rotation.y = Math.PI / 2; // Face left
+                                c.street = Street.HORIZONTAL;
+                                c.rotatedAngle = 0;
+                                c.isEntryTraffic = false;
+                            }
                         }
                     }
 
@@ -856,8 +884,8 @@
                     const v = new THREE.Vector3();
                     obj.getWorldPosition(v);
                     
-                    if (objName === 'targetV') v.x += 20; 
-                    if (objName === 'targetH') v.z -= 20; 
+                    if (objName === 'targetV') v.x += 10; 
+                    if (objName === 'targetH') v.z -= 10; 
 
                     v.project(camera);
                     
