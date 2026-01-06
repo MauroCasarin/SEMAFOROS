@@ -345,6 +345,7 @@
 
                 createGround(); 
                 createRoads(); 
+                createAvenueZones();
                 createCrosswalks(); 
                 createSensorVisuals(); 
                 createStreetLabels(); 
@@ -506,6 +507,51 @@
                 whiteEdgeLineH_SouthWest.position.set(-edgeLineMidpointOffset, 0.02, -ROAD_WIDTH / 2);
                 scene.add(whiteEdgeLineH_SouthWest);
             }
+            
+            function createAvenueZones() {
+                const mat = new THREE.LineDashedMaterial({
+                    color: 0x555555, // Dark grey
+                    linewidth: 1,
+                    scale: 1,
+                    dashSize: 2,
+                    gapSize: 2,
+                });
+
+                const segmentLength = (ROAD_LENGTH / 2) - (ROAD_WIDTH / 2);
+                const segmentWidth = ROAD_WIDTH / 2;
+                const centerOffset = (ROAD_LENGTH / 2 + ROAD_WIDTH / 2) / 2;
+                
+                const createZone = (x, z, width, height) => {
+                    const shape = new THREE.Shape();
+                    shape.moveTo(-width/2, -height/2);
+                    shape.lineTo(width/2, -height/2);
+                    shape.lineTo(width/2, height/2);
+                    shape.lineTo(-width/2, height/2);
+                    shape.closePath();
+
+                    const points = shape.getPoints();
+                    const geometry = new THREE.BufferGeometry().setFromPoints(points);
+                    
+                    const line = new THREE.Line(geometry, mat);
+                    line.computeLineDistances();
+                    
+                    line.position.set(x, 0.06, z); // Slightly above the road lines
+                    line.rotation.x = -Math.PI / 2;
+                    scene.add(line);
+                };
+
+                // Vertical Avenues
+                createZone(segmentWidth / 2, centerOffset, segmentWidth, segmentLength); // AV1
+                createZone(-segmentWidth / 2, centerOffset, segmentWidth, segmentLength); // AV2
+                createZone(segmentWidth / 2, -centerOffset, segmentWidth, segmentLength); // AV6
+                createZone(-segmentWidth / 2, -centerOffset, segmentWidth, segmentLength); // AV5
+                
+                // Horizontal Avenues
+                createZone(centerOffset, segmentWidth / 2, segmentLength, segmentWidth); // AV8
+                createZone(centerOffset, -segmentWidth / 2, segmentLength, segmentWidth); // AV7
+                createZone(-centerOffset, segmentWidth / 2, segmentLength, segmentWidth); // AV3
+                createZone(-centerOffset, -segmentWidth / 2, segmentLength, segmentWidth); // AV4
+            }
 
             function createCrosswalks() {
                 const whiteMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
@@ -630,19 +676,15 @@
 
                 if (street === Street.VERTICAL) {
                     z = ROAD_LENGTH / 2 + 5 + (Math.random() - 0.5) * 5;
-                    const turnRand = Math.random();
-                    if (turnRand < 0.3) { // 30% Right
+                    rot = 0;
+                    if (Math.random() < 0.3) { // 30% de probabilidad de girar a la derecha
                         turnIntent = TurnIntent.RIGHT;
-                        lane = 0; // Outer lane
-                    } else if (turnRand < 0.6) { // 30% Left
-                        turnIntent = TurnIntent.LEFT;
-                        lane = 1; // Inner lane
-                    } else { // 40% Straight
+                        lane = 0; // Debe estar en el carril exterior (derecho) para girar a la derecha
+                    } else {
                         turnIntent = TurnIntent.STRAIGHT;
-                        lane = Math.random() > 0.5 ? 0 : 1;
+                        lane = Math.random() > 0.5 ? 0 : 1; // Puede estar en cualquier carril para ir recto
                     }
                     x = (lane === 0 ? LANE_OUTER_OFFSET : LANE_INNER_OFFSET);
-                    rot = 0;
                 } else { // HORIZONTAL
                     x = ROAD_LENGTH / 2 + 5 + (Math.random() - 0.5) * 5;
                     if (Math.random() < 0.3) {
@@ -665,6 +707,22 @@
                 if (!safe) return;
 
                 const grp = new THREE.Group();
+                
+                // --- Visualización de Burbuja de Colisión ---
+                const bubbleGeometry = new THREE.CircleGeometry(1, 32); // Radio 1, se escalará dinámicamente
+                const bubbleMaterial = new THREE.MeshBasicMaterial({
+                    color: 0x0077ff, // Azul
+                    transparent: true,
+                    opacity: 0.15,
+                    side: THREE.DoubleSide,
+                    depthWrite: false // Evita problemas de renderizado con otras transparencias
+                });
+                const bubbleMesh = new THREE.Mesh(bubbleGeometry, bubbleMaterial);
+                bubbleMesh.rotation.x = -Math.PI / 2; // Plana sobre el suelo
+                bubbleMesh.position.y = 0.1; // Ligeramente por encima del asfalto
+                grp.add(bubbleMesh);
+                // --- Fin de Visualización ---
+
                 const body = new THREE.Mesh(new THREE.BoxGeometry(2.2, 1.4, CAR_LENGTH), new THREE.MeshStandardMaterial({ color: col }));
                 body.position.y = 0.7;
                 body.castShadow = true;
@@ -674,6 +732,19 @@
                 
                 const wheels = new THREE.Mesh(new THREE.BoxGeometry(2.3, 0.5, 3.5), new THREE.MeshBasicMaterial({ color: 0x000000 }));
                 wheels.position.y = 0.25;
+
+                // Indicador Derecho (Verde)
+                const rightIndicatorMat = new THREE.MeshBasicMaterial({ color: 0x22c55e });
+                const indicatorGeo = new THREE.BoxGeometry(0.2, 0.4, 0.8);
+                const rightIndicator = new THREE.Mesh(indicatorGeo, rightIndicatorMat);
+                rightIndicator.position.set(1.15, body.position.y, 0); 
+                grp.add(rightIndicator);
+
+                // Indicador Izquierdo (Rojo)
+                const leftIndicatorMat = new THREE.MeshBasicMaterial({ color: 0xef4444 });
+                const leftIndicator = new THREE.Mesh(indicatorGeo, leftIndicatorMat);
+                leftIndicator.position.set(-1.15, body.position.y, 0);
+                grp.add(leftIndicator);
 
                 grp.add(wheels, body, top);
 
@@ -694,6 +765,8 @@
                     targetStreet: null,      
                     rotatedAngle: 0,
                     isEntryTraffic: true,
+                    isUnrestricted: false,
+                    bubbleMesh: bubbleMesh // Referencia a la malla de la burbuja
                 };
                 car.speed = car.maxSpeed; 
                 cars.push(car);
@@ -708,6 +781,11 @@
                         scene.remove(c.mesh);
                         cars.splice(i, 1);
                         continue;
+                    }
+
+                    // Unrestricted state for escape routes (AV8)
+                    if (c.street === Street.HORIZONTAL && c.mesh.position.x > (ROAD_WIDTH / 2) && c.mesh.position.z > 0) {
+                        c.isUnrestricted = true;
                     }
 
                     if (c.isEntryTraffic) {
@@ -727,6 +805,21 @@
                              c.isTurning = true;
                         }
                     }
+                    
+                    // --- Actualizar Burbuja de Colisión ---
+                    const brakingStartGap = (c.isUnrestricted || c.isTurning) ? 12.0 : 25.0;
+                    const bubbleRadius = brakingStartGap / 4;
+
+                    let scaleX = bubbleRadius; // Escala que afecta al ancho
+                    let scaleY = bubbleRadius; // Escala que afecta al largo (dirección de marcha)
+
+                    if (!c.isTurning) {
+                        const maxRadius = LANE_WIDTH / 2; // Radio máximo para permanecer en el carril
+                        scaleX = Math.min(bubbleRadius, maxRadius);
+                    }
+                    
+                    c.bubbleMesh.scale.set(scaleX, scaleY, 1);
+                    // --- Fin Actualización ---
 
                     const stopLine = c.street === Street.VERTICAL ? STOP_LINE_V : STOP_LINE_H;
                     const pos = c.street === Street.VERTICAL ? c.mesh.position.z : c.mesh.position.x;
@@ -734,9 +827,9 @@
 
                     // 2. CÁLCULO DE VELOCIDAD OBJETIVO
                     let targetSpeed = c.maxSpeed;
-
-                    // A. SEMÁFORO (Solo para tráfico de entrada, si NO está girando y NO ha cruzado la línea)
-                    if (c.isEntryTraffic && !c.isTurning && distStop > 0) {
+                    
+                    // A. SEMÁFORO (Todos los autos deben respetar el semáforo)
+                    if (c.isEntryTraffic && !c.isTurning && distStop > 0 && !c.isUnrestricted) {
                         const light = c.street === Street.VERTICAL ? controller.stateV : controller.stateH;
                         if (light === LightState.RED || light === LightState.YELLOW) {
                             if (distStop < 2.5) {
@@ -748,7 +841,6 @@
                     }
 
                     // 3. LÓGICA ANTI-COLISIÓN (Prioridad Máxima)
-                    // Si está girando, IGNORA COLISIONES para no detenerse.
                     if (!c.isTurning) {
                         let minGap = Infinity;
                         let frontCarSpeed = 0;
@@ -760,19 +852,34 @@
                             let gap = Infinity;
                             let isRelevant = false;
 
-                            // Caso 1: Seguimiento normal en carril
-                            if (c.street === other.street && c.lane === other.lane) {
-                                const otherPos = other.street === Street.VERTICAL ? other.mesh.position.z : other.mesh.position.x;
-                                gap = pos - otherPos; 
-                                if (gap > 0) isRelevant = true;
+                            // --- Lógica de seguimiento en el mismo carril/calle (para todos los autos) ---
+                            if (c.street === other.street) {
+                                // Reemplaza la comprobación de carril por una de proximidad en el eje transversal,
+                                // ya que los autos que giran pierden su designación de carril.
+                                let samePath = false;
+                                if (c.street === Street.VERTICAL) {
+                                    if (Math.abs(c.mesh.position.x - other.mesh.position.x) < LANE_WIDTH * 0.5) samePath = true;
+                                } else { // HORIZONTAL
+                                    if (Math.abs(c.mesh.position.z - other.mesh.position.z) < LANE_WIDTH * 0.5) samePath = true;
+                                }
+
+                                if(samePath) {
+                                    const otherPos = other.street === Street.VERTICAL ? other.mesh.position.z : other.mesh.position.x;
+                                    gap = pos - otherPos; 
+                                    // Un gap positivo significa que 'other' está detrás de 'c' en la dirección del viaje
+                                    if (gap > 0) isRelevant = true;
+                                }
                             }
-                            // Caso 2: Proximidad Espacial (Crucial para Giros)
-                            // Si 'c' no está girando, pero 'other' SÍ, 'c' debe frenar para evitar choque.
-                            else if (other.isTurning) {
+                            
+                            // --- Comprobación de peligro en intersección (SOLO para tráfico de entrada) ---
+                            if (c.isEntryTraffic && other.isTurning) {
                                 const d = c.mesh.position.distanceTo(other.mesh.position);
-                                if (d < 14.0) {
-                                    gap = d;
-                                    isRelevant = true;
+                                if (d < 14.0) { // Comprobar proximidad
+                                    // Si esta es una amenaza más cercana que un auto en el mismo carril, priorizarla.
+                                    if (d < gap) { 
+                                        gap = d;
+                                        isRelevant = true;
+                                    }
                                 }
                             }
 
@@ -782,16 +889,15 @@
                             }
                         }
 
-                        const MIN_SAFE_GAP = 6.5; 
-                        const BRAKING_START_GAP = 25.0; 
-
-                        if (minGap < BRAKING_START_GAP) {
-                            if (minGap < MIN_SAFE_GAP) {
+                        const minSafeGap = c.isUnrestricted ? 3.0 : 6.5; 
+                        
+                        if (minGap < brakingStartGap) {
+                            if (minGap < minSafeGap) {
                                 targetSpeed = 0; 
                             } else {
-                                const safetyFactor = (minGap - MIN_SAFE_GAP) / (BRAKING_START_GAP - MIN_SAFE_GAP);
+                                const safetyFactor = (minGap - minSafeGap) / (brakingStartGap - minSafeGap);
                                 const desiredSpeed = Math.min(c.maxSpeed, frontCarSpeed);
-                                targetSpeed = Math.min(targetSpeed, desiredSpeed * safetyFactor + (minGap - MIN_SAFE_GAP) * 2.0);
+                                targetSpeed = Math.min(targetSpeed, desiredSpeed * safetyFactor + (minGap - minSafeGap) * 2.0);
                             }
                         }
                     }
@@ -825,8 +931,10 @@
                                 }
                                 c.rotatedAngle = 0;
                                 c.isEntryTraffic = false; 
+                                c.isUnrestricted = true;
                             }
                         } else if (c.turnIntent === TurnIntent.LEFT && c.street === Street.VERTICAL) {
+                            // This code is now unreachable due to spawnCar changes, but kept for safety.
                             const turnRadius = LANE_OUTER_OFFSET + LANE_WIDTH / 2;
                             const deltaYaw = (move / turnRadius);
 
@@ -840,6 +948,7 @@
                                 c.street = Street.HORIZONTAL;
                                 c.rotatedAngle = 0;
                                 c.isEntryTraffic = false;
+                                c.isUnrestricted = true;
                             }
                         }
                     }
