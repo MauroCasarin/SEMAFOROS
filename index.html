@@ -773,131 +773,121 @@
             }
 
             function updateCars(dt) {
-                for(let i = cars.length - 1; i >= 0; i--) {
+                for (let i = cars.length - 1; i >= 0; i--) {
                     const c = cars[i];
-                    
-                    const distanceFromCenter = Math.sqrt(c.mesh.position.x**2 + c.mesh.position.z**2);
+
+                    // --- Lógica de Estado y Desaparición ---
+                    const distanceFromCenter = Math.sqrt(c.mesh.position.x ** 2 + c.mesh.position.z ** 2);
                     if (distanceFromCenter > ROAD_LENGTH / 2 + 50) {
                         scene.remove(c.mesh);
                         cars.splice(i, 1);
                         continue;
                     }
 
-                    // Unrestricted state for escape routes (AV8)
-                    if (c.street === Street.HORIZONTAL && c.mesh.position.x > (ROAD_WIDTH / 2) && c.mesh.position.z > 0) {
-                        c.isUnrestricted = true;
-                    }
-
                     if (c.isEntryTraffic) {
-                        if ((c.street === Street.VERTICAL && c.mesh.position.z < 0) ||
-                            (c.street === Street.HORIZONTAL && c.mesh.position.x < 0)) {
+                        if ((c.street === Street.VERTICAL && c.mesh.position.z < -ROAD_WIDTH / 2) ||
+                            (c.street === Street.HORIZONTAL && c.mesh.position.x < -ROAD_WIDTH / 2)) {
                             c.isEntryTraffic = false;
                         }
                     }
 
+                    // --- Detección de Giro ---
                     const INTERSECTION_HALF_WIDTH = ROAD_WIDTH / 2;
-
-                    // 1. DETECCIÓN DE GIRO
-                    if (!c.isTurning && (c.turnIntent === TurnIntent.RIGHT || (c.turnIntent === TurnIntent.LEFT && c.street === Street.VERTICAL))) {
-                        const inZone = (c.street === Street.VERTICAL && c.mesh.position.z < INTERSECTION_HALF_WIDTH && c.mesh.position.z > -INTERSECTION_HALF_WIDTH) ||
-                                       (c.street === Street.HORIZONTAL && c.mesh.position.x < INTERSECTION_HALF_WIDTH && c.mesh.position.x > -INTERSECTION_HALF_WIDTH);
+                    if (!c.isTurning && c.turnIntent === TurnIntent.RIGHT) {
+                        const inZone = (c.street === Street.VERTICAL && c.mesh.position.z < INTERSECTION_HALF_WIDTH) ||
+                                       (c.street === Street.HORIZONTAL && c.mesh.position.x < INTERSECTION_HALF_WIDTH);
                         if (inZone) {
-                             c.isTurning = true;
+                            c.isTurning = true;
                         }
                     }
-                    
+
                     // --- Actualizar Burbuja de Colisión ---
                     const brakingStartGap = (c.isUnrestricted || c.isTurning) ? 12.0 : 25.0;
                     const bubbleRadius = brakingStartGap / 4;
-
-                    let scaleX = bubbleRadius; // Escala que afecta al ancho
-                    let scaleY = bubbleRadius; // Escala que afecta al largo (dirección de marcha)
-
+                    let scaleX = bubbleRadius, scaleY = bubbleRadius;
                     if (!c.isTurning) {
-                        const maxRadius = LANE_WIDTH / 2; // Radio máximo para permanecer en el carril
-                        scaleX = Math.min(bubbleRadius, maxRadius);
+                        scaleX = Math.min(bubbleRadius, LANE_WIDTH / 2);
                     }
-                    
                     c.bubbleMesh.scale.set(scaleX, scaleY, 1);
-                    // --- Fin Actualización ---
-
-                    const stopLine = c.street === Street.VERTICAL ? STOP_LINE_V : STOP_LINE_H;
-                    const pos = c.street === Street.VERTICAL ? c.mesh.position.z : c.mesh.position.x;
-                    const distStop = pos - stopLine;
-
-                    // 2. CÁLCULO DE VELOCIDAD OBJETIVO
-                    let targetSpeed = c.maxSpeed;
                     
-                    // A. SEMÁFORO (Todos los autos deben respetar el semáforo)
-                    if (c.isEntryTraffic && !c.isTurning && distStop > 0 && !c.isUnrestricted) {
-                        const light = c.street === Street.VERTICAL ? controller.stateV : controller.stateH;
-                        if (light === LightState.RED || light === LightState.YELLOW) {
-                            if (distStop < 2.5) {
-                                targetSpeed = 0;
-                            } else {
-                                targetSpeed = Math.min(targetSpeed, (distStop - 1.5) * 3.0);
+
+                    // --- CÁLCULO DE VELOCIDAD Y MOVIMIENTO ---
+                    let targetSpeed = c.maxSpeed;
+                    let minGap = Infinity;
+                    let frontCarSpeed = 0;
+
+                    // 1. LÓGICA ANTI-COLISIÓN
+                    for (let j = 0; j < cars.length; j++) {
+                        const other = cars[j];
+                        if (c === other) continue;
+
+                        let gap = Infinity;
+                        let isRelevant = false;
+
+                        // A. Lógica de seguimiento en el mismo camino (TODOS los autos)
+                        if (c.street === other.street) {
+                            let samePath = false;
+                            if (c.street === Street.VERTICAL) {
+                                if (Math.abs(c.mesh.position.x - other.mesh.position.x) < LANE_WIDTH * 0.8) samePath = true;
+                            } else { // HORIZONTAL
+                                if (Math.abs(c.mesh.position.z - other.mesh.position.z) < LANE_WIDTH * 0.8) samePath = true;
+                            }
+                            if (samePath) {
+                                const pos = c.street === Street.VERTICAL ? c.mesh.position.z : c.mesh.position.x;
+                                const otherPos = other.street === Street.VERTICAL ? other.mesh.position.z : other.mesh.position.x;
+                                gap = pos - otherPos;
+                                if (gap > 0) isRelevant = true;
+                            }
+                        }
+                        
+                        if (isRelevant && gap < minGap) {
+                            minGap = gap;
+                            frontCarSpeed = other.speed;
+                        }
+                    }
+
+                    const minSafeGap = c.isUnrestricted ? 3.0 : 6.5;
+                    if (minGap < brakingStartGap) {
+                        if (minGap < minSafeGap) {
+                            targetSpeed = 0;
+                        } else {
+                            const safetyFactor = (minGap - minSafeGap) / (brakingStartGap - minSafeGap);
+                            const desiredSpeed = Math.min(c.maxSpeed, frontCarSpeed);
+                            targetSpeed = Math.min(targetSpeed, desiredSpeed * safetyFactor + (minGap - minSafeGap) * 2.0);
+                        }
+                    }
+
+                    // 2. LÓGICA DE GIRO (prevención de colisión)
+                    if (c.isTurning) {
+                        for (const other of cars) {
+                            if (c === other) continue;
+                            const distance = c.mesh.position.distanceTo(other.mesh.position);
+                            if (distance > 12) continue;
+
+                            const dirToOther = other.mesh.position.clone().sub(c.mesh.position).normalize();
+                            const carForwardDir = new THREE.Vector3(0, 0, -1).applyQuaternion(c.mesh.quaternion);
+                            const dot = dirToOther.dot(carForwardDir);
+
+                            if (dot > 0.75 && distance < 10) {
+                                targetSpeed = Math.min(targetSpeed, other.speed * 0.8);
+                                break;
                             }
                         }
                     }
 
-                    // 3. LÓGICA ANTI-COLISIÓN (Prioridad Máxima)
-                    if (!c.isTurning) {
-                        let minGap = Infinity;
-                        let frontCarSpeed = 0;
-
-                        for (let j = 0; j < cars.length; j++) {
-                            const other = cars[j];
-                            if (c === other) continue;
-
-                            let gap = Infinity;
-                            let isRelevant = false;
-
-                            // --- Lógica de seguimiento en el mismo carril/calle (para todos los autos) ---
-                            if (c.street === other.street) {
-                                // Reemplaza la comprobación de carril por una de proximidad en el eje transversal,
-                                // ya que los autos que giran pierden su designación de carril.
-                                let samePath = false;
-                                if (c.street === Street.VERTICAL) {
-                                    if (Math.abs(c.mesh.position.x - other.mesh.position.x) < LANE_WIDTH * 0.5) samePath = true;
-                                } else { // HORIZONTAL
-                                    if (Math.abs(c.mesh.position.z - other.mesh.position.z) < LANE_WIDTH * 0.5) samePath = true;
+                    // 3. LÓGICA DE SEMÁFORO (SOLO tráfico de entrada y recto)
+                    if (c.isEntryTraffic && !c.isTurning) {
+                        const stopLine = c.street === Street.VERTICAL ? STOP_LINE_V : STOP_LINE_H;
+                        const pos = c.street === Street.VERTICAL ? c.mesh.position.z : c.mesh.position.x;
+                        const distStop = pos - stopLine;
+                        if (distStop > 0) {
+                            const light = c.street === Street.VERTICAL ? controller.stateV : controller.stateH;
+                            if (light === LightState.RED || light === LightState.YELLOW) {
+                                if (distStop < 2.5) {
+                                    targetSpeed = 0;
+                                } else {
+                                    targetSpeed = Math.min(targetSpeed, (distStop - 1.5) * 3.0);
                                 }
-
-                                if(samePath) {
-                                    const otherPos = other.street === Street.VERTICAL ? other.mesh.position.z : other.mesh.position.x;
-                                    gap = pos - otherPos; 
-                                    // Un gap positivo significa que 'other' está detrás de 'c' en la dirección del viaje
-                                    if (gap > 0) isRelevant = true;
-                                }
-                            }
-                            
-                            // --- Comprobación de peligro en intersección (SOLO para tráfico de entrada) ---
-                            if (c.isEntryTraffic && other.isTurning) {
-                                const d = c.mesh.position.distanceTo(other.mesh.position);
-                                if (d < 14.0) { // Comprobar proximidad
-                                    // Si esta es una amenaza más cercana que un auto en el mismo carril, priorizarla.
-                                    if (d < gap) { 
-                                        gap = d;
-                                        isRelevant = true;
-                                    }
-                                }
-                            }
-
-                            if (isRelevant && gap < minGap) {
-                                minGap = gap;
-                                frontCarSpeed = other.speed;
-                            }
-                        }
-
-                        const minSafeGap = c.isUnrestricted ? 3.0 : 6.5; 
-                        
-                        if (minGap < brakingStartGap) {
-                            if (minGap < minSafeGap) {
-                                targetSpeed = 0; 
-                            } else {
-                                const safetyFactor = (minGap - minSafeGap) / (brakingStartGap - minSafeGap);
-                                const desiredSpeed = Math.min(c.maxSpeed, frontCarSpeed);
-                                targetSpeed = Math.min(targetSpeed, desiredSpeed * safetyFactor + (minGap - minSafeGap) * 2.0);
                             }
                         }
                     }
@@ -905,54 +895,28 @@
                     // 4. APLICACIÓN DE MOVIMIENTO
                     const lerpFactor = targetSpeed < c.speed ? 0.3 : 0.1;
                     c.speed += (targetSpeed - c.speed) * lerpFactor;
-                    
-                    if (c.speed < 0.1 && targetSpeed === 0) c.speed = 0;
+                    if (c.speed < 0.1 && targetSpeed <= 0) c.speed = 0;
 
                     const move = c.speed * dt;
 
-                    // Ejecutar Giro Físico
-                    if (c.isTurning) {
-                        if (c.turnIntent === TurnIntent.RIGHT) {
-                            const turnRadius = LANE_OUTER_OFFSET;
-                            const deltaYaw = (move / turnRadius);
-                            
-                            if (c.rotatedAngle < Math.PI / 2) {
-                                c.mesh.rotation.y -= deltaYaw;
-                                c.rotatedAngle += deltaYaw;
-                            } else {
-                                c.isTurning = false;
-                                c.turnIntent = TurnIntent.STRAIGHT;
-                                if (c.street === Street.VERTICAL) {
-                                    c.mesh.rotation.y = -Math.PI / 2;
-                                    c.street = Street.HORIZONTAL;
-                                } else {
-                                    c.mesh.rotation.y = 0;
-                                    c.street = Street.VERTICAL;
-                                }
-                                c.rotatedAngle = 0;
-                                c.isEntryTraffic = false; 
-                                c.isUnrestricted = true;
-                            }
-                        } else if (c.turnIntent === TurnIntent.LEFT && c.street === Street.VERTICAL) {
-                            // This code is now unreachable due to spawnCar changes, but kept for safety.
-                            const turnRadius = LANE_OUTER_OFFSET + LANE_WIDTH / 2;
-                            const deltaYaw = (move / turnRadius);
-
-                            if (c.rotatedAngle < Math.PI / 2) {
-                                c.mesh.rotation.y += deltaYaw; // Counter-clockwise for left turn
-                                c.rotatedAngle += deltaYaw;
-                            } else {
-                                c.isTurning = false;
-                                c.turnIntent = TurnIntent.STRAIGHT;
-                                c.mesh.rotation.y = Math.PI / 2; // Face left
-                                c.street = Street.HORIZONTAL;
-                                c.rotatedAngle = 0;
-                                c.isEntryTraffic = false;
-                                c.isUnrestricted = true;
-                            }
+                    // A. Ejecutar Giro Físico
+                    if (c.isTurning && c.turnIntent === TurnIntent.RIGHT) {
+                        const turnRadius = LANE_OUTER_OFFSET;
+                        const deltaYaw = (move / turnRadius);
+                        if (c.rotatedAngle < Math.PI / 2) {
+                            c.mesh.rotation.y -= deltaYaw;
+                            c.rotatedAngle += deltaYaw;
+                        } else {
+                            c.isTurning = false;
+                            c.turnIntent = TurnIntent.STRAIGHT;
+                            c.mesh.rotation.y = (c.street === Street.VERTICAL) ? -Math.PI / 2 : 0;
+                            c.street = (c.street === Street.VERTICAL) ? Street.HORIZONTAL : Street.VERTICAL;
+                            c.rotatedAngle = 0;
+                            c.isEntryTraffic = false;
                         }
                     }
-
+                    
+                    // B. Aplicar movimiento final
                     const currentRotationY = c.mesh.rotation.y;
                     c.mesh.position.x += -Math.sin(currentRotationY) * move;
                     c.mesh.position.z += -Math.cos(currentRotationY) * move;
