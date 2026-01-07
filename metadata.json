@@ -1,5 +1,5 @@
 {
-  "name": "Giros 6/1 Traffic Simulation",
+  "name": "Transito 7/1 Traffic Simulation",
   "description": "A Three.js traffic simulation web application with intelligent and manual traffic light control.",
   "requestFramePermissions": []
 }
