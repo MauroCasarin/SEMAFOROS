@@ -447,7 +447,7 @@
                     const target = new THREE.Object3D(); 
                     target.name = `target${name}`;
                     
-                    const UI_COUNTER_OFFSET = 12;
+                    const UI_COUNTER_OFFSET = 18;
                     let targetX = x, targetZ = z;
 
                     if (name === 'A1') targetX -= UI_COUNTER_OFFSET;
@@ -476,10 +476,17 @@
                 };
                 const WV = ROAD_WIDTH_V/2; const WH = ROAD_WIDTH_H/2;
                 
+                // Entrances
                 create('A1', -LANE_CENTER_V, -WH-8); 
                 create('A3', WV+8, -LANE_CENTER_H, -Math.PI/2);
                 create('A5', LANE_CENTER_V, WH+8);
                 create('A7', -WV-8, LANE_CENTER_H, Math.PI/2);
+
+                // Exits
+                create('A2', LANE_CENTER_V, -WH-8);
+                create('A4', WV+8, LANE_CENTER_H, -Math.PI/2);
+                create('A6', -LANE_CENTER_V, WH+8);
+                create('A8', -WV-8, -LANE_CENTER_H, Math.PI/2);
             }
             
             function createVehicleMesh(vehicleType, color, width, length) {
