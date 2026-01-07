@@ -118,6 +118,7 @@
             const LANE_WIDTH_H = (ROAD_WIDTH_H - MEDIAN_WIDTH) / 2;
             const LANE_CENTER_V = MEDIAN_WIDTH / 2 + LANE_WIDTH_V / 2; // Distancia del centro de la calle al centro del carril
             const LANE_CENTER_H = MEDIAN_WIDTH / 2 + LANE_WIDTH_H / 2;
+            const LANE_OFFSET = LANE_WIDTH_V / 4; // Desplazamiento desde el centro de la vía direccional al centro de un carril
             
             const STOP_LINE_OFFSET = 4;
             const STOP_LINE_N = -ROAD_WIDTH_H / 2 - STOP_LINE_OFFSET; // Para A1 (desde Norte)
@@ -569,10 +570,30 @@
                 const L = ROAD_LENGTH / 2 + 10;
                 
                 switch(Math.floor(Math.random() * 4)) {
-                    case 0: vehicle.direction = Direction.SOUTH; x = -LANE_CENTER_V; z = -L; rot = 0; break;
-                    case 1: vehicle.direction = Direction.WEST; x = L; z = -LANE_CENTER_H; rot = -Math.PI/2; break;
-                    case 2: vehicle.direction = Direction.NORTH; x = LANE_CENTER_V; z = L; rot = Math.PI; break;
-                    case 3: vehicle.direction = Direction.EAST; x = -L; z = LANE_CENTER_H; rot = Math.PI/2; break;
+                    case 0: 
+                        vehicle.direction = Direction.SOUTH; 
+                        x = (Math.random() < 0.5 ? -LANE_CENTER_V - LANE_OFFSET : -LANE_CENTER_V + LANE_OFFSET); 
+                        z = -L; 
+                        rot = 0; 
+                        break;
+                    case 1: 
+                        vehicle.direction = Direction.WEST; 
+                        z = (Math.random() < 0.5 ? -LANE_CENTER_H - LANE_OFFSET : -LANE_CENTER_H + LANE_OFFSET); 
+                        x = L; 
+                        rot = -Math.PI/2; 
+                        break;
+                    case 2: 
+                        vehicle.direction = Direction.NORTH; 
+                        x = (Math.random() < 0.5 ? LANE_CENTER_V - LANE_OFFSET : LANE_CENTER_V + LANE_OFFSET); 
+                        z = L; 
+                        rot = Math.PI; 
+                        break;
+                    case 3: 
+                        vehicle.direction = Direction.EAST; 
+                        z = (Math.random() < 0.5 ? LANE_CENTER_H - LANE_OFFSET : LANE_CENTER_H + LANE_OFFSET); 
+                        x = -L; 
+                        rot = Math.PI/2; 
+                        break;
                 }
 
                 if (cars.some(c => c.mesh.position.distanceTo(new THREE.Vector3(x,0,z)) < c.actualLength * 2.5)) return;
@@ -599,6 +620,14 @@
                     let frontCar = null;
                     cars.forEach(o => {
                         if (c === o || c.direction !== o.direction) return;
+                        
+                        // Solo considerar vehículos en el mismo carril
+                        if (c.direction === Direction.SOUTH || c.direction === Direction.NORTH) {
+                            if (c.mesh.position.x !== o.mesh.position.x) return;
+                        } else { // EAST or WEST
+                            if (c.mesh.position.z !== o.mesh.position.z) return;
+                        }
+
                         let gap;
                         if (c.direction === Direction.SOUTH)      gap = o.mesh.position.z - c.mesh.position.z;
                         else if (c.direction === Direction.NORTH) gap = c.mesh.position.z - o.mesh.position.z;
