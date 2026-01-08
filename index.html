@@ -18,7 +18,7 @@
         #canvas-container { width: 100vw; height: 100vh; display: block; position: absolute; top: 0; left: 0; z-index: 0; }
         
         .ui-panel {
-            background-color: rgba(17, 24, 39, 0.95);
+            background-color: rgba(17, 24, 39, 0.85);
             border: 1px solid #374151;
             backdrop-filter: blur(4px);
         }
@@ -39,9 +39,9 @@
             transition: all 0.2s ease-in-out;
             
             /* Talla para móviles */
-            font-size: 1.0rem;
-            padding: 0.2rem 0.5rem;
-            min-width: 40px;
+            font-size: 0.9rem;
+            padding: 0.15rem 0.4rem;
+            min-width: 36px;
         }
         .sensor-label {
             display: block;
@@ -49,18 +49,18 @@
             text-transform: uppercase;
             margin-top: -2px;
              /* Talla para móviles */
-            font-size: 0.5rem;
+            font-size: 0.45rem;
         }
 
         /* Tallas para pantallas más grandes */
         @media (min-width: 768px) {
             .sensor-counter {
-                font-size: 1.5rem;
-                padding: 0.4rem 0.8rem;
-                min-width: 50px;
+                font-size: 1.3rem;
+                padding: 0.3rem 0.7rem;
+                min-width: 45px;
             }
             .sensor-label {
-                font-size: 0.6rem;
+                font-size: 0.55rem;
             }
         }
     </style>
@@ -74,7 +74,12 @@
     <!-- UI: Barra de Título Superior -->
     <div class="absolute top-0 left-0 right-0 p-4 z-20 pointer-events-none">
         <div class="ui-panel max-w-sm mx-auto rounded-lg shadow-xl text-white pointer-events-auto text-center py-2 px-6">
-            <h1 class="text-lg font-bold text-cyan-400">Simulación de Tráfico</h1>
+            <div class="flex items-center justify-center gap-3">
+                 <h1 class="text-lg font-bold text-cyan-400">Semáforos Inteligentes</h1>
+                 <a href="https://www.instagram.com/3d_mc_3d/reels/?next=%2F" target="_blank" rel="noopener noreferrer" class="pointer-events-auto">
+                    <img src="https://raw.githubusercontent.com/MauroCasarin/SEMAFOROS/refs/heads/main/Logo%20MC.png" alt="MC Logo" class="h-6 w-6 transition-transform hover:scale-110">
+                 </a>
+            </div>
         </div>
     </div>
 
@@ -99,7 +104,7 @@
 
     <!-- UI: Panel de Control Inferior Unificado -->
     <div class="absolute bottom-4 left-4 right-4 flex justify-center pointer-events-none z-20">
-        <div class="ui-panel p-3 rounded-xl shadow-2xl text-white pointer-events-auto flex flex-col md:flex-row items-center gap-4 w-full max-w-xs md:max-w-xl md:justify-between md:p-4">
+        <div class="ui-panel p-2 rounded-xl shadow-2xl text-white pointer-events-auto flex flex-col md:flex-row items-center gap-3 w-full max-w-xs md:max-w-lg md:justify-between md:p-3">
             
             <!-- Controles de Densidad -->
             <div class="w-full md:w-auto">
@@ -483,33 +488,42 @@
             }
             
             function createSensorVisuals() {
-                const mat = new THREE.MeshBasicMaterial({ color: 0x00bcd4, transparent: true, opacity: 0.35 }); 
-                const createSensor = (w, h, x, z, name) => {
+                const mat = new THREE.MeshBasicMaterial({ color: 0x00bcd4, transparent: true, opacity: 0.35 });
+                const createSensorPlane = (w, h, x, z) => {
                     const mesh = new THREE.Mesh(new THREE.PlaneGeometry(w, h), mat);
-                    mesh.rotation.x = -Math.PI/2; 
-                    mesh.position.set(x, 0.03, z); 
+                    mesh.rotation.x = -Math.PI / 2;
+                    mesh.position.set(x, 0.03, z);
                     scene.add(mesh);
-                    
-                    const target = new THREE.Object3D(); 
-                    target.name = `target${name}`;
-                    
-                    const isMobile = window.innerWidth < 768;
-                    const UI_COUNTER_OFFSET = isMobile ? 12 : 18;
-                    let targetX = x, targetZ = z;
+                };
 
-                    if (name === 'A1') targetX -= UI_COUNTER_OFFSET;
-                    if (name === 'A5') targetX += UI_COUNTER_OFFSET;
-                    if (name === 'A3') targetZ -= UI_COUNTER_OFFSET;
-                    if (name === 'A7') targetZ += UI_COUNTER_OFFSET;
+                // Create the visual planes for sensors
+                createSensorPlane(LANE_WIDTH_V, SENSOR_ZONE_LEN, -LANE_CENTER_V, STOP_LINE_N - SENSOR_ZONE_LEN / 2);
+                createSensorPlane(LANE_WIDTH_V, SENSOR_ZONE_LEN, LANE_CENTER_V, STOP_LINE_S + SENSOR_ZONE_LEN / 2);
+                createSensorPlane(SENSOR_ZONE_LEN, LANE_WIDTH_H, STOP_LINE_E + SENSOR_ZONE_LEN / 2, -LANE_CENTER_H);
+                createSensorPlane(SENSOR_ZONE_LEN, LANE_WIDTH_H, STOP_LINE_W - SENSOR_ZONE_LEN / 2, LANE_CENTER_H);
 
-                    target.position.set(targetX, 0, targetZ); 
+                // Create invisible targets for the UI counters next to traffic lights
+                const lightHousingOffsetX = ROAD_WIDTH_V / 2 + 3;
+                const lightHousingOffsetZ = ROAD_WIDTH_H / 2 + 3;
+                const counterOffset = 7; // How far from the light post the counter should be
+
+                const createTarget = (name, x, z) => {
+                    const target = new THREE.Object3D();
+                    target.name = `target${name.toUpperCase()}`;
+                    target.position.set(x, 0, z);
                     scene.add(target);
                 };
-                createSensor(LANE_WIDTH_V, SENSOR_ZONE_LEN, -LANE_CENTER_V, STOP_LINE_N - SENSOR_ZONE_LEN/2, 'A1');
-                createSensor(LANE_WIDTH_V, SENSOR_ZONE_LEN, LANE_CENTER_V, STOP_LINE_S + SENSOR_ZONE_LEN/2, 'A5');
-                createSensor(SENSOR_ZONE_LEN, LANE_WIDTH_H, STOP_LINE_E + SENSOR_ZONE_LEN/2, -LANE_CENTER_H, 'A3');
-                createSensor(SENSOR_ZONE_LEN, LANE_WIDTH_H, STOP_LINE_W - SENSOR_ZONE_LEN/2, LANE_CENTER_H, 'A7');
+
+                // A1 (near North light at -offsetX, -offsetZ)
+                createTarget('A1', -lightHousingOffsetX - counterOffset, -lightHousingOffsetZ);
+                // A3 (near East light at +offsetX, -offsetZ)
+                createTarget('A3', lightHousingOffsetX, -lightHousingOffsetZ - counterOffset);
+                // A5 (near South light at +offsetX, +offsetZ)
+                createTarget('A5', lightHousingOffsetX + counterOffset, lightHousingOffsetZ);
+                // A7 (near West light at -offsetX, +offsetZ)
+                createTarget('A7', -lightHousingOffsetX, lightHousingOffsetZ + counterOffset);
             }
+
 
             function createStreetLabels(font) {
                 const mat = new THREE.MeshBasicMaterial({ color: 0x333333 });
