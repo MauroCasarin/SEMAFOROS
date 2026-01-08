@@ -534,10 +534,11 @@
                     grp.add(seat);
                 }
                 
-                // Lights
+                const lightY = 0.85;
+
+                // Headlights & Taillights
                 const headLightMat = new THREE.MeshBasicMaterial({ color: 0xffffaa });
                 const tailLightMat = new THREE.MeshBasicMaterial({ color: 0xdd0000 });
-                const lightY = 0.85;
                 const lightWidth = Math.max(0.2, width * 0.2);
 
                 const leftHeadLight = new THREE.Mesh(new THREE.BoxGeometry(lightWidth, 0.5, 0.2), headLightMat);
@@ -555,6 +556,35 @@
                 const rightTailLight = new THREE.Mesh(new THREE.BoxGeometry(lightWidth, 0.5, 0.2), tailLightMat);
                 rightTailLight.position.set(width / 2.5, lightY, -length / 2 - 0.01);
                 grp.add(rightTailLight);
+
+                // Indicators
+                const indicatorMat = new THREE.MeshBasicMaterial({ color: 0xffa500 }); // Amber
+                const indicatorSize = { w: 0.4, h: 0.5, d: 0.4 };
+                const indicatorGeo = new THREE.BoxGeometry(indicatorSize.w, indicatorSize.h, indicatorSize.d);
+
+                const indicatorFR = new THREE.Mesh(indicatorGeo, indicatorMat.clone());
+                indicatorFR.position.set(width / 2 + 0.05, lightY, length / 2 - indicatorSize.d);
+                indicatorFR.name = "indicator_fr";
+                indicatorFR.visible = false;
+                grp.add(indicatorFR);
+
+                const indicatorRR = new THREE.Mesh(indicatorGeo, indicatorMat.clone());
+                indicatorRR.position.set(width / 2 + 0.05, lightY, -length / 2 + indicatorSize.d);
+                indicatorRR.name = "indicator_rr";
+                indicatorRR.visible = false;
+                grp.add(indicatorRR);
+
+                const indicatorFL = new THREE.Mesh(indicatorGeo, indicatorMat.clone());
+                indicatorFL.position.set(-width / 2 - 0.05, lightY, length / 2 - indicatorSize.d);
+                indicatorFL.name = "indicator_fl";
+                indicatorFL.visible = false;
+                grp.add(indicatorFL);
+
+                const indicatorRL = new THREE.Mesh(indicatorGeo, indicatorMat.clone());
+                indicatorRL.position.set(-width / 2 - 0.05, lightY, -length / 2 + indicatorSize.d);
+                indicatorRL.name = "indicator_rl";
+                indicatorRL.visible = false;
+                grp.add(indicatorRL);
 
                 return grp;
             }
@@ -608,14 +638,24 @@
                     c.isTurning = false; return;
                 }
 
-                const turnSpeedFactor = 0.8;
-                const distanceToMove = c.speed * dt * turnSpeedFactor;
+                const turnTargetSpeed = c.maxSpeed * 0.8;
+                c.speed += (turnTargetSpeed - c.speed) * (turnTargetSpeed < c.speed ? c.decelFactor : c.accelFactor);
+                if (c.speed < 0) c.speed = 0;
+
+                const distanceToMove = c.speed * dt;
                 const pathLength = c.turnPath.getLength();
                 const progressIncrement = distanceToMove / pathLength;
                 c.turnProgress += progressIncrement;
 
                 if (c.turnProgress >= 1) {
                     c.isTurning = false;
+                    c.blinkerState = 'off'; // Turn off blinker
+                    c.blinkerTimer = 0;
+                    if (c.indicators.fr) c.indicators.fr.visible = false;
+                    if (c.indicators.rr) c.indicators.rr.visible = false;
+                    if (c.indicators.fl) c.indicators.fl.visible = false;
+                    if (c.indicators.rl) c.indicators.rl.visible = false;
+                    
                     const endPoint = c.turnPath.getPointAt(1);
                     c.mesh.position.copy(endPoint);
                     c.direction = c.destinationDirection;
@@ -651,6 +691,7 @@
 
                 const vehicle = { 
                     mesh: null, 
+                    indicators: null,
                     direction: null, 
                     speed: 0, 
                     maxSpeed: vehicleType.maxSpeed[0] + Math.random() * vehicleType.maxSpeed[1],
@@ -664,6 +705,8 @@
                     turnPath: null,
                     turnProgress: 0,
                     destinationDirection: null,
+                    blinkerState: 'off',
+                    blinkerTimer: 0
                 };
 
                 const canTurn = vehicle.type === 'CAR' || vehicle.type === 'MOTORCYCLE';
@@ -736,10 +779,20 @@
                 const mesh = createVehicleMesh(vehicleType, color, actualWidth, actualLength);
 
                 mesh.position.set(x, 0, z); mesh.rotation.y = rot; scene.add(mesh);
-                vehicle.mesh = mesh; vehicle.speed = vehicle.maxSpeed; cars.push(vehicle);
+                vehicle.mesh = mesh; 
+                vehicle.indicators = {
+                    fr: mesh.getObjectByName("indicator_fr"),
+                    rr: mesh.getObjectByName("indicator_rr"),
+                    fl: mesh.getObjectByName("indicator_fl"),
+                    rl: mesh.getObjectByName("indicator_rl")
+                };
+                vehicle.speed = vehicle.maxSpeed;
+                cars.push(vehicle);
             }
 
             function updateCars(dt) {
+                const INDICATOR_DISTANCE = 70;
+
                 for (let i = cars.length - 1; i >= 0; i--) {
                     const c = cars[i];
                     if (!c.mesh) { cars.splice(i, 1); continue; }
@@ -761,7 +814,6 @@
                     cars.forEach(o => {
                         if (c === o || c.isTurning || o.isTurning || c.direction !== o.direction) return;
                         
-                        // Solo considerar vehículos en el mismo carril
                         if (c.direction === Direction.SOUTH || c.direction === Direction.NORTH) { // Vertical
                             if (Math.abs(c.mesh.position.x - o.mesh.position.x) > 1) return;
                         } else { // Horizontal
@@ -769,21 +821,17 @@
                         }
 
                         let gap;
-                        if (c.direction === Direction.SOUTH)      gap = o.mesh.position.z - c.mesh.position.z; // Southbound (+z)
-                        else if (c.direction === Direction.NORTH) gap = c.mesh.position.z - o.mesh.position.z; // Northbound (-z)
-                        else if (c.direction === Direction.WEST)  gap = c.mesh.position.x - o.mesh.position.x; // Westbound (-x)
-                        else if (c.direction === Direction.EAST)  gap = o.mesh.position.x - c.mesh.position.x; // Eastbound (+x)
+                        if (c.direction === Direction.SOUTH)      gap = o.mesh.position.z - c.mesh.position.z;
+                        else if (c.direction === Direction.NORTH) gap = c.mesh.position.z - o.mesh.position.z;
+                        else if (c.direction === Direction.WEST)  gap = c.mesh.position.x - o.mesh.position.x;
+                        else if (c.direction === Direction.EAST)  gap = o.mesh.position.x - c.mesh.position.x;
                         
-                        if (gap > 0 && gap < minGap) {
-                            minGap = gap;
-                            frontCar = o;
-                        }
+                        if (gap > 0 && gap < minGap) { minGap = gap; frontCar = o; }
                     });
                     
                     if (frontCar) {
                         const stoppingGap = (carLength / 2) + (frontCar.actualLength / 2) + 2.5; 
                         const safeFollowingDistance = stoppingGap + c.speed * c.followingTime;
-
                         if (minGap < safeFollowingDistance) {
                             targetSpeed = minGap < stoppingGap ? 0 : c.maxSpeed * ((minGap - stoppingGap) / (safeFollowingDistance - stoppingGap));
                         }
@@ -795,9 +843,26 @@
                     else if (c.direction === Direction.EAST)  { light = controller.stateH; stopLine = STOP_LINE_W; pos = c.mesh.position.x; distStop = stopLine - pos; }
                     else if (c.direction === Direction.WEST)  { light = controller.stateH; stopLine = STOP_LINE_E; pos = c.mesh.position.x; distStop = pos - stopLine; }
                     
-                    const frontBumperDist = distStop - carLength / 2;
+                    if (c.wantsToTurn && !c.isTurning && c.blinkerState === 'off' && distStop > 0 && distStop < INDICATOR_DISTANCE) {
+                        c.blinkerState = 'left'; // All implemented turns are left turns
+                    }
+                    if (c.blinkerState !== 'off') {
+                        c.blinkerTimer += dt;
+                        const isOn = Math.floor(c.blinkerTimer / 0.25) % 2 === 0;
+                        if (c.blinkerState === 'right') {
+                            if (c.indicators.fr) c.indicators.fr.visible = isOn;
+                            if (c.indicators.rr) c.indicators.rr.visible = isOn;
+                            if (c.indicators.fl) c.indicators.fl.visible = false;
+                            if (c.indicators.rl) c.indicators.rl.visible = false;
+                        } else if (c.blinkerState === 'left') {
+                            if (c.indicators.fr) c.indicators.fr.visible = false;
+                            if (c.indicators.rr) c.indicators.rr.visible = false;
+                            if (c.indicators.fl) c.indicators.fl.visible = isOn;
+                            if (c.indicators.rl) c.indicators.rl.visible = isOn;
+                        }
+                    }
 
-                    // --- Turn Logic ---
+                    const frontBumperDist = distStop - carLength / 2;
                     let canTurn = light === LightState.GREEN;
                     if(c.wantsToTurn) {
                         const turnTriggerDist = 1; 
@@ -805,12 +870,7 @@
                              (c.direction === Direction.NORTH && c.mesh.position.z <  ROAD_WIDTH_H/2 + turnTriggerDist) ||
                              (c.direction === Direction.EAST  && c.mesh.position.x > -ROAD_WIDTH_V/2 - turnTriggerDist) ||
                              (c.direction === Direction.WEST  && c.mesh.position.x <  ROAD_WIDTH_V/2 + turnTriggerDist) ) 
-                        {
-                            if (canTurn) {
-                                startTurn(c);
-                                continue;
-                            }
-                        }
+                        { if (canTurn) { startTurn(c); continue; } }
                     }
 
                     const mustStopForLight = !canTurn && distStop > 0;
@@ -820,31 +880,16 @@
                         targetSpeed = Math.min(targetSpeed, desiredSpeed);
                     }
                     
-                    let smoothingFactor;
-                    if (targetSpeed < c.speed) {
-                        smoothingFactor = c.decelFactor; // Braking
-                    } else {
-                        smoothingFactor = c.accelFactor; // Accelerating
-                    }
-
-                    c.speed += (targetSpeed - c.speed) * smoothingFactor;
+                    c.speed += (targetSpeed - c.speed) * (targetSpeed < c.speed ? c.decelFactor : c.accelFactor);
                     if (c.speed < 0) c.speed = 0;
 
                     let movement = c.speed * dt;
-
-                    const COLLISION_BUFFER = 2.5;
-                    const BRAKE_BUFFER = 1.5;
-                    let maxMovementFromCar = Infinity;
-                    if (frontCar) {
-                        maxMovementFromCar = minGap - (carLength / 2) - (frontCar.actualLength / 2) - COLLISION_BUFFER;
-                    }
+                    const COLLISION_BUFFER = 2.5; const BRAKE_BUFFER = 1.5;
+                    let maxMovementFromCar = frontCar ? minGap - (carLength / 2) - (frontCar.actualLength / 2) - COLLISION_BUFFER : Infinity;
+                    let maxMovementFromLight = mustStopForLight ? frontBumperDist - BRAKE_BUFFER : Infinity;
                     
-                    let maxMovementFromLight = Infinity;
-                    if (mustStopForLight) maxMovementFromLight = frontBumperDist - BRAKE_BUFFER;
-                    
-                    const maxSafeMovement = Math.min(maxMovementFromCar, maxMovementFromLight);
-                    if (movement > maxSafeMovement) {
-                        movement = Math.max(0, maxSafeMovement);
+                    if (movement > Math.min(maxMovementFromCar, maxMovementFromLight)) {
+                        movement = Math.max(0, Math.min(maxMovementFromCar, maxMovementFromLight));
                         c.speed = 0;
                     }
                     
