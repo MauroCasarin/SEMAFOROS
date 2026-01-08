@@ -76,15 +76,26 @@
     <!-- UI: Controles -->
     <div class="absolute bottom-6 left-6 right-6 flex flex-col md:flex-row justify-between items-end gap-4 pointer-events-none z-20">
         
-        <!-- Slider Densidad -->
-        <div class="ui-panel p-4 rounded-lg shadow-xl text-white pointer-events-auto w-full md:w-72">
-            <label class="block text-sm font-bold mb-2 text-cyan-400 flex justify-between">
-                <span>Densidad Tráfico</span>
-                <span id="density-val">50%</span>
-            </label>
-            <input id="density-slider" type="range" min="1" max="100" value="50" 
-                   class="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-cyan-400">
+        <!-- Sliders Densidad -->
+        <div class="ui-panel p-4 rounded-lg shadow-xl text-white pointer-events-auto w-full md:w-80">
+            <div class="mb-3">
+                <label class="block text-sm font-bold mb-1 text-cyan-400 flex justify-between">
+                    <span>Densidad N-S</span>
+                    <span id="density-val-ns">50%</span>
+                </label>
+                <input id="density-slider-ns" type="range" min="1" max="100" value="50" 
+                       class="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-cyan-400">
+            </div>
+            <div>
+                <label class="block text-sm font-bold mb-1 text-cyan-400 flex justify-between">
+                    <span>Densidad E-O</span>
+                    <span id="density-val-ew">50%</span>
+                </label>
+                <input id="density-slider-ew" type="range" min="1" max="100" value="50" 
+                       class="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-cyan-400">
+            </div>
         </div>
+
 
         <!-- Botón Modo -->
         <div class="ui-panel p-4 rounded-lg shadow-xl text-white pointer-events-auto flex items-center gap-4">
@@ -164,10 +175,10 @@
             // Variables Globales
             let scene, camera, renderer, clock;
             let cars = []; // Now represents all vehicles
-            let density = 50;
+            let densityNS = 50, densityEW = 50;
             let isSmartMode = true;
             let controller;
-            let nextSpawnTime = 0;
+            let nextSpawnTimeNS = 0, nextSpawnTimeEW = 0;
 
             // Elementos DOM
             const counters = {
@@ -176,7 +187,8 @@
                 a5: { el: document.getElementById('counter-a5'), val: document.getElementById('valA5') },
                 a7: { el: document.getElementById('counter-a7'), val: document.getElementById('valA7') }
             };
-            const elDensityVal = document.getElementById('density-val');
+            const elDensityValNS = document.getElementById('density-val-ns');
+            const elDensityValEW = document.getElementById('density-val-ew');
             const elStatusText = document.getElementById('status-text');
             const elStatusDot = document.getElementById('status-dot');
             
@@ -190,7 +202,7 @@
                     this.MIN_GREEN = 3.0; this.MAX_GREEN = 12.0;
                     this.YELLOW_TIME = 1.0; 
                     this.PRE_GREEN_YELLOW_TIME = 1.0;
-                    this.FIXED_TIME = 5.0; 
+                    this.FIXED_TIME = 20.0; 
 
                     this.buildInfrastructure(scene); 
                     this.updateVisuals();           
@@ -307,10 +319,11 @@
 
                 controller = new TrafficController(scene); 
                 window.addEventListener('resize', onResize);
-                document.getElementById('density-slider').addEventListener('input', (e) => { density = parseInt(e.target.value); elDensityVal.innerText = density + '%'; });
+                document.getElementById('density-slider-ns').addEventListener('input', (e) => { densityNS = parseInt(e.target.value); elDensityValNS.innerText = densityNS + '%'; });
+                document.getElementById('density-slider-ew').addEventListener('input', (e) => { densityEW = parseInt(e.target.value); elDensityValEW.innerText = densityEW + '%'; });
                 document.getElementById('mode-btn').addEventListener('click', () => {
                     isSmartMode = !isSmartMode;
-                    elStatusText.innerText = isSmartMode ? 'INTELIGENTE' : 'FIJO';
+                    elStatusText.innerText = isSmartMode ? 'INTELIGENTE' : 'SECUENCIA';
                     elStatusDot.classList.toggle('bg-green-500', isSmartMode);
                     elStatusDot.classList.toggle('bg-yellow-500', !isSmartMode);
                     controller.timerV = 0;
@@ -621,7 +634,7 @@
                 }
             }
             
-            function spawnVehicle() {
+            function spawnVehicle(axis) {
                 const rand = Math.random();
                 let vehicleType;
                 if (rand < 0.7) vehicleType = VEHICLE_TYPES.CAR;
@@ -657,9 +670,16 @@
                 let x = 0, z = 0, rot = 0;
                 const L = ROAD_LENGTH / 2 + 10;
                 
+                let spawnCase;
+                if (axis === 'NS') {
+                    spawnCase = Math.random() < 0.5 ? 0 : 2; // From A1 (South) or A5 (North)
+                } else { // 'EW'
+                    spawnCase = Math.random() < 0.5 ? 1 : 3; // From A3 (West) or A7 (East)
+                }
+
                 // Note: Directions are named based on destination, not origin
                 // A1: Southbound, A3: Westbound, A5: Northbound, A7: Eastbound
-                switch(Math.floor(Math.random() * 4)) {
+                switch(spawnCase) {
                     case 0: // From A1 (Southbound)
                         vehicle.direction = Direction.SOUTH; 
                         rot = 0; // Faces +Z
@@ -853,11 +873,18 @@
                 const dt = clock.getDelta() * SIMULATION_SPEED;
                 const elapsedTime = clock.getElapsedTime() * SIMULATION_SPEED;
 
-                if (elapsedTime > nextSpawnTime && cars.length < 150) {
-                    spawnVehicle();
-                    const baseInterval = (1.0 - (density / 100 * 0.9)) * 2.5;
+                if (elapsedTime > nextSpawnTimeNS && cars.length < 150) {
+                    spawnVehicle('NS');
+                    const baseInterval = (1.0 - (densityNS / 100 * 0.9)) * 2.5;
                     const randomInterval = baseInterval * (0.5 + Math.random() * 1.0);
-                    nextSpawnTime = elapsedTime + randomInterval;
+                    nextSpawnTimeNS = elapsedTime + randomInterval;
+                }
+                
+                if (elapsedTime > nextSpawnTimeEW && cars.length < 150) {
+                    spawnVehicle('EW');
+                    const baseInterval = (1.0 - (densityEW / 100 * 0.9)) * 2.5;
+                    const randomInterval = baseInterval * (0.5 + Math.random() * 1.0);
+                    nextSpawnTimeEW = elapsedTime + randomInterval;
                 }
                 
                 updateCars(dt);
