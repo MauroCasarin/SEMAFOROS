@@ -542,7 +542,85 @@
 
                 return grp;
             }
+            
+            function startTurn(c) {
+                c.isTurning = true;
+                c.wantsToTurn = false;
+                c.turnProgress = 0;
 
+                const W_V_HALF = ROAD_WIDTH_V / 2;
+                const W_H_HALF = ROAD_WIDTH_H / 2;
+
+                let start, end, control;
+
+                // Note: Directions are named based on destination, not origin
+                // NORTH: Northbound (from A5), SOUTH: Southbound (from A1) etc.
+                switch(c.direction) {
+                    case Direction.SOUTH: // A1 -> A8 (Southbound to Westbound)
+                        start = new THREE.Vector3(-LANE_CENTER_V - LANE_OFFSET, 0, -W_H_HALF);
+                        end = new THREE.Vector3(-W_V_HALF, 0, -LANE_CENTER_H - LANE_OFFSET);
+                        control = new THREE.Vector3(start.x, 0, end.z);
+                        break;
+                    case Direction.WEST: // A3 -> A2 (Westbound to Northbound)
+                        start = new THREE.Vector3(W_V_HALF, 0, -LANE_CENTER_H - LANE_OFFSET);
+                        end = new THREE.Vector3(LANE_CENTER_V + LANE_OFFSET, 0, -W_H_HALF);
+                        control = new THREE.Vector3(end.x, 0, start.z);
+                        break;
+                    case Direction.NORTH: // A5 -> A4 (Northbound to Eastbound)
+                        start = new THREE.Vector3(LANE_CENTER_V + LANE_OFFSET, 0, W_H_HALF);
+                        end = new THREE.Vector3(W_V_HALF, 0, LANE_CENTER_H + LANE_OFFSET);
+                        control = new THREE.Vector3(start.x, 0, end.z);
+                        break;
+                    case Direction.EAST: // A7 -> A6 (Eastbound to Southbound)
+                        start = new THREE.Vector3(-W_V_HALF, 0, LANE_CENTER_H + LANE_OFFSET);
+                        end = new THREE.Vector3(-LANE_CENTER_V - LANE_OFFSET, 0, W_H_HALF);
+                        control = new THREE.Vector3(end.x, 0, start.z);
+                        break;
+                }
+                
+                if (start && end && control) {
+                    c.turnPath = new THREE.QuadraticBezierCurve3(start, control, end);
+                    c.mesh.position.copy(start);
+                } else {
+                    c.isTurning = false;
+                    c.destinationDirection = null;
+                }
+            }
+
+            function updateTurn(c, dt) {
+                if (!c.turnPath) {
+                    c.isTurning = false; return;
+                }
+
+                const turnSpeedFactor = 0.8;
+                const distanceToMove = c.speed * dt * turnSpeedFactor;
+                const pathLength = c.turnPath.getLength();
+                const progressIncrement = distanceToMove / pathLength;
+                c.turnProgress += progressIncrement;
+
+                if (c.turnProgress >= 1) {
+                    c.isTurning = false;
+                    const endPoint = c.turnPath.getPointAt(1);
+                    c.mesh.position.copy(endPoint);
+                    c.direction = c.destinationDirection;
+                    c.destinationDirection = null;
+                    c.turnPath = null;
+                    
+                    // Update rotation to match new direction
+                    switch(c.direction) {
+                        case Direction.NORTH: c.mesh.rotation.y = Math.PI; break;    // Northbound faces -Z
+                        case Direction.EAST: c.mesh.rotation.y = Math.PI/2; break;   // Eastbound faces +X
+                        case Direction.SOUTH: c.mesh.rotation.y = 0; break;           // Southbound faces +Z
+                        case Direction.WEST: c.mesh.rotation.y = -Math.PI/2; break;  // Westbound faces -X
+                    }
+                } else {
+                    const newPos = c.turnPath.getPointAt(c.turnProgress);
+                    const tangent = c.turnPath.getTangentAt(c.turnProgress).normalize();
+                    c.mesh.position.copy(newPos);
+                    c.mesh.rotation.y = Math.atan2(tangent.x, tangent.z); // Adjust for vehicle model orientation
+                }
+            }
+            
             function spawnVehicle() {
                 const rand = Math.random();
                 let vehicleType;
@@ -563,36 +641,68 @@
                     acceleration: vehicleType.acceleration[0] + Math.random() * vehicleType.acceleration[1],
                     followingTime: 0.8 + Math.random() * 0.7,
                     actualLength: actualLength,
-                    type: vehicleType.name
+                    type: vehicleType.name,
+                    wantsToTurn: false,
+                    isTurning: false,
+                    turnPath: null,
+                    turnProgress: 0,
+                    destinationDirection: null,
                 };
+
+                const canTurn = vehicle.type === 'CAR' || vehicle.type === 'MOTORCYCLE';
+                if (canTurn && Math.random() < 0.35) {
+                    vehicle.wantsToTurn = true;
+                }
 
                 let x = 0, z = 0, rot = 0;
                 const L = ROAD_LENGTH / 2 + 10;
                 
+                // Note: Directions are named based on destination, not origin
+                // A1: Southbound, A3: Westbound, A5: Northbound, A7: Eastbound
                 switch(Math.floor(Math.random() * 4)) {
-                    case 0: 
+                    case 0: // From A1 (Southbound)
                         vehicle.direction = Direction.SOUTH; 
-                        x = (Math.random() < 0.5 ? -LANE_CENTER_V - LANE_OFFSET : -LANE_CENTER_V + LANE_OFFSET); 
-                        z = -L; 
-                        rot = 0; 
+                        rot = 0; // Faces +Z
+                        z = -L;
+                        if (vehicle.wantsToTurn) { // A1 -> A8 (to Westbound)
+                            x = -LANE_CENTER_V - LANE_OFFSET; // Outer lane for right turn
+                            vehicle.destinationDirection = Direction.WEST;
+                        } else {
+                            x = (Math.random() < 0.5 ? -LANE_CENTER_V - LANE_OFFSET : -LANE_CENTER_V + LANE_OFFSET); 
+                        }
                         break;
-                    case 1: 
-                        vehicle.direction = Direction.WEST; 
-                        z = (Math.random() < 0.5 ? -LANE_CENTER_H - LANE_OFFSET : -LANE_CENTER_H + LANE_OFFSET); 
-                        x = L; 
-                        rot = -Math.PI/2; 
+                    case 1: // From A3 (Westbound)
+                        vehicle.direction = Direction.WEST;
+                        rot = -Math.PI/2; // Faces -X
+                        x = L;
+                        if (vehicle.wantsToTurn) { // A3 -> A2 (to Northbound)
+                            z = -LANE_CENTER_H - LANE_OFFSET; // Outer lane
+                            vehicle.destinationDirection = Direction.NORTH;
+                        } else {
+                             z = (Math.random() < 0.5 ? -LANE_CENTER_H - LANE_OFFSET : -LANE_CENTER_H + LANE_OFFSET); 
+                        }
                         break;
-                    case 2: 
-                        vehicle.direction = Direction.NORTH; 
-                        x = (Math.random() < 0.5 ? LANE_CENTER_V - LANE_OFFSET : LANE_CENTER_V + LANE_OFFSET); 
-                        z = L; 
-                        rot = Math.PI; 
+                    case 2: // From A5 (Northbound)
+                        vehicle.direction = Direction.NORTH;
+                        rot = Math.PI; // Faces -Z
+                        z = L;
+                        if (vehicle.wantsToTurn) { // A5 -> A4 (to Eastbound)
+                            x = LANE_CENTER_V + LANE_OFFSET; // Outer lane
+                            vehicle.destinationDirection = Direction.EAST;
+                        } else {
+                            x = (Math.random() < 0.5 ? LANE_CENTER_V - LANE_OFFSET : LANE_CENTER_V + LANE_OFFSET); 
+                        }
                         break;
-                    case 3: 
-                        vehicle.direction = Direction.EAST; 
-                        z = (Math.random() < 0.5 ? LANE_CENTER_H - LANE_OFFSET : LANE_CENTER_H + LANE_OFFSET); 
-                        x = -L; 
-                        rot = Math.PI/2; 
+                    case 3: // From A7 (Eastbound)
+                        vehicle.direction = Direction.EAST;
+                        rot = Math.PI/2; // Faces +X
+                        x = -L;
+                        if (vehicle.wantsToTurn) { // A7 -> A6 (to Southbound)
+                           z = LANE_CENTER_H + LANE_OFFSET; // Outer lane
+                           vehicle.destinationDirection = Direction.SOUTH;
+                        } else {
+                            z = (Math.random() < 0.5 ? LANE_CENTER_H - LANE_OFFSET : LANE_CENTER_H + LANE_OFFSET); 
+                        }
                         break;
                 }
 
@@ -609,6 +719,12 @@
                 for (let i = cars.length - 1; i >= 0; i--) {
                     const c = cars[i];
                     if (!c.mesh) { cars.splice(i, 1); continue; }
+
+                    if (c.isTurning) {
+                        updateTurn(c, dt);
+                        continue;
+                    }
+
                     if (Math.abs(c.mesh.position.x) > ROAD_LENGTH / 2 + 20 || Math.abs(c.mesh.position.z) > ROAD_LENGTH / 2 + 20) {
                         scene.remove(c.mesh); cars.splice(i, 1); continue;
                     }
@@ -619,20 +735,20 @@
                     let minGap = Infinity;
                     let frontCar = null;
                     cars.forEach(o => {
-                        if (c === o || c.direction !== o.direction) return;
+                        if (c === o || c.isTurning || o.isTurning || c.direction !== o.direction) return;
                         
                         // Solo considerar vehículos en el mismo carril
-                        if (c.direction === Direction.SOUTH || c.direction === Direction.NORTH) {
-                            if (c.mesh.position.x !== o.mesh.position.x) return;
-                        } else { // EAST or WEST
-                            if (c.mesh.position.z !== o.mesh.position.z) return;
+                        if (c.direction === Direction.SOUTH || c.direction === Direction.NORTH) { // Vertical
+                            if (Math.abs(c.mesh.position.x - o.mesh.position.x) > 1) return;
+                        } else { // Horizontal
+                            if (Math.abs(c.mesh.position.z - o.mesh.position.z) > 1) return;
                         }
 
                         let gap;
-                        if (c.direction === Direction.SOUTH)      gap = o.mesh.position.z - c.mesh.position.z;
-                        else if (c.direction === Direction.NORTH) gap = c.mesh.position.z - o.mesh.position.z;
-                        else if (c.direction === Direction.WEST)  gap = c.mesh.position.x - o.mesh.position.x;
-                        else if (c.direction === Direction.EAST)  gap = o.mesh.position.x - c.mesh.position.x;
+                        if (c.direction === Direction.SOUTH)      gap = o.mesh.position.z - c.mesh.position.z; // Southbound (+z)
+                        else if (c.direction === Direction.NORTH) gap = c.mesh.position.z - o.mesh.position.z; // Northbound (-z)
+                        else if (c.direction === Direction.WEST)  gap = c.mesh.position.x - o.mesh.position.x; // Westbound (-x)
+                        else if (c.direction === Direction.EAST)  gap = o.mesh.position.x - c.mesh.position.x; // Eastbound (+x)
                         
                         if (gap > 0 && gap < minGap) {
                             minGap = gap;
@@ -657,7 +773,23 @@
                     
                     const frontBumperDist = distStop - carLength / 2;
 
-                    const mustStopForLight = (light === LightState.RED || light === LightState.YELLOW) && distStop > 0;
+                    // --- Turn Logic ---
+                    let canTurn = light === LightState.GREEN;
+                    if(c.wantsToTurn) {
+                        const turnTriggerDist = 1; 
+                        if ( (c.direction === Direction.SOUTH && c.mesh.position.z > -ROAD_WIDTH_H/2 - turnTriggerDist) ||
+                             (c.direction === Direction.NORTH && c.mesh.position.z <  ROAD_WIDTH_H/2 + turnTriggerDist) ||
+                             (c.direction === Direction.EAST  && c.mesh.position.x > -ROAD_WIDTH_V/2 - turnTriggerDist) ||
+                             (c.direction === Direction.WEST  && c.mesh.position.x <  ROAD_WIDTH_V/2 + turnTriggerDist) ) 
+                        {
+                            if (canTurn) {
+                                startTurn(c);
+                                continue;
+                            }
+                        }
+                    }
+
+                    const mustStopForLight = !canTurn && distStop > 0;
                     if (mustStopForLight && frontBumperDist < 60) {
                         let desiredSpeed = frontBumperDist * 1.5;
                         if (desiredSpeed < 0) desiredSpeed = 0;
@@ -685,7 +817,7 @@
                         movement = Math.max(0, maxSafeMovement);
                         c.speed = 0;
                     }
-
+                    
                     c.mesh.translateZ(movement); 
                 }
             }
@@ -694,10 +826,12 @@
                 const counts = { a1: 0, a3: 0, a5: 0, a7: 0 };
                 cars.forEach(c => {
                     const { x, z } = c.mesh.position;
-                    if (c.direction === Direction.SOUTH && z > (STOP_LINE_N - SENSOR_ZONE_LEN) && z < STOP_LINE_N) counts.a1++;
-                    if (c.direction === Direction.NORTH && z < (STOP_LINE_S + SENSOR_ZONE_LEN) && z > STOP_LINE_S) counts.a5++;
-                    if (c.direction === Direction.WEST && x < (STOP_LINE_E + SENSOR_ZONE_LEN) && x > STOP_LINE_E) counts.a3++;
-                    if (c.direction === Direction.EAST && x > (STOP_LINE_W - SENSOR_ZONE_LEN) && x < STOP_LINE_W) counts.a7++;
+                    if (!c.isTurning) {
+                         if (c.direction === Direction.SOUTH && z > (STOP_LINE_N - SENSOR_ZONE_LEN) && z < STOP_LINE_N) counts.a1++;
+                         if (c.direction === Direction.NORTH && z < (STOP_LINE_S + SENSOR_ZONE_LEN) && z > STOP_LINE_S) counts.a5++;
+                         if (c.direction === Direction.WEST && x < (STOP_LINE_E + SENSOR_ZONE_LEN) && x > STOP_LINE_E) counts.a3++;
+                         if (c.direction === Direction.EAST && x > (STOP_LINE_W - SENSOR_ZONE_LEN) && x < STOP_LINE_W) counts.a7++;
+                    }
                 });
                 Object.keys(counts).forEach(k => { if (counters[k] && counters[k].val) counters[k].val.innerText = counts[k]; });
                 return counts;
