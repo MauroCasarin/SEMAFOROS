@@ -151,7 +151,8 @@
                     baseLength: 6.0,
                     baseWidth: 2.8,
                     maxSpeed: [25, 20], // base, random
-                    acceleration: [0.1, 0.1],
+                    accelFactor: [0.08, 0.02], // How quickly it reaches target speed
+                    decelFactor: [0.2, 0.05],  // How quickly it brakes
                     colorPool: [0xef4444, 0x3b82f6, 0x22c55e, 0xeab308, 0xa855f7, 0xf97316, 0x64748b]
                 },
                 TRUCK: {
@@ -159,7 +160,8 @@
                     baseLength: 10.5,
                     baseWidth: 3.2,
                     maxSpeed: [20, 15],
-                    acceleration: [0.05, 0.05],
+                    accelFactor: [0.04, 0.01],
+                    decelFactor: [0.15, 0.05],
                     colorPool: [0x4b5563, 0x78716c, 0x064e3b, 0x92400e]
                 },
                 MOTORCYCLE: {
@@ -167,7 +169,8 @@
                     baseLength: 3.5,
                     baseWidth: 1.2,
                     maxSpeed: [35, 25],
-                    acceleration: [0.2, 0.2],
+                    accelFactor: [0.15, 0.05],
+                    decelFactor: [0.25, 0.05],
                     colorPool: [0xdc2626, 0x1d4ed8, 0x000000, 0xeeeeee]
                 }
             };
@@ -651,7 +654,8 @@
                     direction: null, 
                     speed: 0, 
                     maxSpeed: vehicleType.maxSpeed[0] + Math.random() * vehicleType.maxSpeed[1],
-                    acceleration: vehicleType.acceleration[0] + Math.random() * vehicleType.acceleration[1],
+                    accelFactor: vehicleType.accelFactor[0] + Math.random() * vehicleType.accelFactor[1],
+                    decelFactor: vehicleType.decelFactor[0] + Math.random() * vehicleType.decelFactor[1],
                     followingTime: 0.8 + Math.random() * 0.7,
                     actualLength: actualLength,
                     type: vehicleType.name,
@@ -815,8 +819,14 @@
                         if (desiredSpeed < 0) desiredSpeed = 0;
                         targetSpeed = Math.min(targetSpeed, desiredSpeed);
                     }
+                    
+                    let smoothingFactor;
+                    if (targetSpeed < c.speed) {
+                        smoothingFactor = c.decelFactor; // Braking
+                    } else {
+                        smoothingFactor = c.accelFactor; // Accelerating
+                    }
 
-                    const smoothingFactor = mustStopForLight ? 0.3 : c.acceleration;
                     c.speed += (targetSpeed - c.speed) * smoothingFactor;
                     if (c.speed < 0) c.speed = 0;
 
