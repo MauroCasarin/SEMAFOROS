@@ -103,8 +103,8 @@
     </div>
 
     <!-- UI: Panel de Control Inferior Unificado -->
-    <div class="absolute bottom-4 left-4 right-4 flex justify-center pointer-events-none z-20">
-        <div class="ui-panel p-2 md:p-3 rounded-xl shadow-2xl text-white pointer-events-auto flex flex-col md:flex-row items-center gap-3 w-full max-w-xs md:max-w-md md:gap-0 md:justify-between">
+    <div id="control-panel-wrapper" class="absolute z-20 pointer-events-auto" style="bottom: 1rem; left: 50%; transform: translateX(-50%); width: clamp(320px, 90vw, 448px); min-width: 300px; min-height: 210px; cursor: move;">
+        <div class="ui-panel p-2 md:p-3 rounded-xl shadow-2xl text-white flex flex-col md:flex-row items-center gap-3 md:gap-0 md:justify-between w-full h-full relative">
             
             <!-- Controles de Densidad -->
             <div class="w-full md:flex-1 md:pr-4">
@@ -344,6 +344,99 @@
                 }
             }
 
+            function setupInteractivePanel() {
+                const panel = document.getElementById('control-panel-wrapper');
+                if (!panel) return;
+
+                const uiPanel = panel.querySelector('.ui-panel');
+                if (!uiPanel) return;
+
+                const resizeHandle = document.createElement('div');
+                resizeHandle.style.position = 'absolute';
+                resizeHandle.style.bottom = '1px';
+                resizeHandle.style.right = '1px';
+                resizeHandle.style.width = '16px';
+                resizeHandle.style.height = '16px';
+                resizeHandle.style.cursor = 'nwse-resize';
+                resizeHandle.style.zIndex = '10';
+                resizeHandle.style.borderBottom = '3px solid #6b7280';
+                resizeHandle.style.borderRight = '3px solid #6b7280';
+                resizeHandle.style.boxSizing = 'border-box';
+                uiPanel.appendChild(resizeHandle);
+
+                let isDragging = false;
+                let dragOffsetX, dragOffsetY;
+
+                panel.addEventListener('mousedown', (e) => {
+                    const target = e.target;
+                    if (target.tagName === 'INPUT' || target.tagName === 'BUTTON' || target === resizeHandle) {
+                        return;
+                    }
+                    e.preventDefault();
+                    
+                    isDragging = true;
+                    document.body.style.userSelect = 'none';
+                    panel.style.cursor = 'grabbing';
+                    
+                    const rect = panel.getBoundingClientRect();
+                    
+                    if (panel.style.transform.includes('translateX')) {
+                        panel.style.transform = 'none';
+                        panel.style.left = `${rect.left}px`;
+                        panel.style.top = `${rect.top}px`;
+                        panel.style.bottom = 'auto';
+                        panel.style.right = 'auto';
+                    }
+
+                    dragOffsetX = e.clientX - panel.offsetLeft;
+                    dragOffsetY = e.clientY - panel.offsetTop;
+
+                    window.addEventListener('mousemove', onDrag);
+                    window.addEventListener('mouseup', onStopDrag, { once: true });
+                });
+
+                function onDrag(e) {
+                    if (!isDragging) return;
+                    panel.style.left = `${e.clientX - dragOffsetX}px`;
+                    panel.style.top = `${e.clientY - dragOffsetY}px`;
+                }
+
+                function onStopDrag() {
+                    isDragging = false;
+                    document.body.style.userSelect = '';
+                    panel.style.cursor = 'move';
+                    window.removeEventListener('mousemove', onDrag);
+                }
+                
+                resizeHandle.addEventListener('mousedown', (e) => {
+                    e.stopPropagation();
+                    e.preventDefault();
+                    document.body.style.userSelect = 'none';
+                    
+                    const rect = panel.getBoundingClientRect();
+                    const initialWidth = rect.width;
+                    const initialHeight = rect.height;
+                    const initialMouseX = e.clientX;
+                    const initialMouseY = e.clientY;
+
+                    function onResize(moveEvent) {
+                        const dx = moveEvent.clientX - initialMouseX;
+                        const dy = moveEvent.clientY - initialMouseY;
+                        panel.style.width = `${initialWidth + dx}px`;
+                        panel.style.height = `${initialHeight + dy}px`;
+                    }
+
+                    function onStopResize() {
+                        document.body.style.userSelect = '';
+                        window.removeEventListener('mousemove', onResize);
+                        window.removeEventListener('mouseup', onStopResize);
+                    }
+                    
+                    window.addEventListener('mousemove', onResize);
+                    window.addEventListener('mouseup', onStopResize, { once: true });
+                });
+            }
+
             function init() {
                 scene = new THREE.Scene();
                 scene.background = new THREE.Color(0xffffff); 
@@ -380,6 +473,8 @@
                     controller.timerH = 0;
                 });
                 
+                setupInteractivePanel();
+
                 const loader = new THREE.FontLoader();
                 loader.load('https://raw.githack.com/mrdoob/three.js/master/examples/fonts/helvetiker_bold.typeface.json', font => {
                     createStreetLabels(font);
