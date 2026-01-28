@@ -123,7 +123,7 @@
     </div>
 
     <!-- UI: Panel de Control Inferior Unificado -->
-    <div id="control-panel-wrapper" class="absolute z-20 pointer-events-auto transition-all duration-400" style="bottom: 1rem; left: 50%; transform: translateX(-50%); width: clamp(320px, 90vw, 448px); min-width: 280px; min-height: 210px; cursor: move;">
+    <div id="control-panel-wrapper" class="absolute z-20 pointer-events-auto transition-all duration-400" style="bottom: 1rem; left: 1rem; width: clamp(320px, 90vw, 448px); min-width: 280px; min-height: 210px; cursor: default;">
         <div class="ui-panel p-2 md:p-3 rounded-xl shadow-2xl text-white flex flex-col items-center w-full h-full relative">
             
             <!-- Botón para Minimizar/Maximizar -->
@@ -385,6 +385,7 @@
                 const uiPanel = panel.querySelector('.ui-panel');
                 if (!uiPanel) return;
 
+                // --- Funcionalidad de Redimensionar ---
                 const resizeHandle = document.createElement('div');
                 resizeHandle.style.position = 'absolute';
                 resizeHandle.style.bottom = '1px';
@@ -397,60 +398,6 @@
                 resizeHandle.style.borderRight = '3px solid #6b7280';
                 resizeHandle.style.boxSizing = 'border-box';
                 uiPanel.appendChild(resizeHandle);
-
-                let isDragging = false;
-                let dragOffsetX, dragOffsetY;
-
-                const onStartDrag = (e) => {
-                    const target = e.target;
-                    // Prevent drag if clicking on buttons, inputs, or handles
-                    if (target.tagName === 'INPUT' || target.tagName === 'BUTTON' || target.closest('button') || target === resizeHandle) {
-                        return;
-                    }
-                    e.preventDefault();
-                    
-                    isDragging = true;
-                    document.body.style.userSelect = 'none';
-                    panel.style.cursor = 'grabbing';
-                    
-                    const rect = panel.getBoundingClientRect();
-                    if (panel.style.transform.includes('translateX')) {
-                        panel.style.transform = 'none';
-                        panel.style.left = `${rect.left}px`;
-                        panel.style.top = `${rect.top}px`;
-                        panel.style.bottom = 'auto';
-                        panel.style.right = 'auto';
-                    }
-                    const clientX = e.type === 'touchstart' ? e.touches[0].clientX : e.clientX;
-                    const clientY = e.type === 'touchstart' ? e.touches[0].clientY : e.clientY;
-                    dragOffsetX = clientX - panel.offsetLeft;
-                    dragOffsetY = clientY - panel.offsetTop;
-
-                    window.addEventListener('mousemove', onDrag);
-                    window.addEventListener('touchmove', onDrag, { passive: false });
-                    window.addEventListener('mouseup', onStopDrag, { once: true });
-                    window.addEventListener('touchend', onStopDrag, { once: true });
-                };
-
-                const onDrag = (e) => {
-                    if (!isDragging) return;
-                    e.preventDefault();
-                    const clientX = e.type === 'touchmove' ? e.touches[0].clientX : e.clientX;
-                    const clientY = e.type === 'touchmove' ? e.touches[0].clientY : e.clientY;
-                    panel.style.left = `${clientX - dragOffsetX}px`;
-                    panel.style.top = `${clientY - dragOffsetY}px`;
-                };
-
-                const onStopDrag = () => {
-                    isDragging = false;
-                    document.body.style.userSelect = '';
-                    panel.style.cursor = 'move';
-                    window.removeEventListener('mousemove', onDrag);
-                    window.removeEventListener('touchmove', onDrag);
-                };
-                
-                panel.addEventListener('mousedown', onStartDrag);
-                panel.addEventListener('touchstart', onStartDrag, { passive: true });
                 
                 const onStartResize = (e) => {
                     e.stopPropagation();
@@ -489,7 +436,7 @@
                 resizeHandle.addEventListener('mousedown', onStartResize);
                 resizeHandle.addEventListener('touchstart', onStartResize, { passive: false });
 
-                // Minimize/Maximize logic
+                // --- Funcionalidad de Minimizar/Maximizar ---
                 const toggleBtn = document.getElementById('toggle-panel-btn');
                 const toggleIcon = document.getElementById('toggle-icon');
                 const collapsiblePart = document.getElementById('collapsible-controls');
