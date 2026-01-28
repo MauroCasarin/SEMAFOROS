@@ -80,7 +80,8 @@
 
         #control-panel-wrapper.minimized {
             min-height: auto;
-            width: clamp(280px, 80vw, 350px) !important;
+            width: auto !important;
+            min-width: 0 !important;
         }
 
     </style>
@@ -133,11 +134,11 @@
             
             <!-- Estadísticas de Vehículos (Siempre Visibles) -->
             <div class="w-full text-xs px-1">
-                <div class="flex justify-between text-gray-400">
+                <div class="flex items-center gap-2 text-gray-400">
                     <span>TOTAL VEHICULOS:</span>
                     <span id="total-vehicles-count" class="font-bold text-white">0</span>
                 </div>
-                <div class="flex justify-between text-gray-400 mt-1">
+                <div class="flex items-center gap-2 text-gray-400 mt-1">
                     <span>VEHICULOS DETENIDOS:</span>
                     <span id="stopped-vehicles-count" class="font-bold text-white">0</span>
                 </div>
