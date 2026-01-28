@@ -123,8 +123,8 @@
     </div>
 
     <!-- UI: Panel de Control Inferior Unificado -->
-    <div id="control-panel-wrapper" class="absolute z-20 pointer-events-auto transition-all duration-400" style="bottom: 1rem; left: 1rem; width: clamp(320px, 90vw, 448px); min-width: 280px; min-height: 210px; cursor: default;">
-        <div class="ui-panel p-2 md:p-3 rounded-xl shadow-2xl text-white flex flex-col items-center w-full h-full relative">
+    <div id="control-panel-wrapper" class="absolute z-20 pointer-events-auto transition-all duration-400" style="bottom: 1rem; left: 1rem; width: clamp(320px, 90vw, 448px); min-width: 280px; cursor: default;">
+        <div class="ui-panel p-2 md:p-3 rounded-xl shadow-2xl text-white flex flex-col items-center w-full relative">
             
             <!-- Botón para Minimizar/Maximizar -->
             <button id="toggle-panel-btn" class="absolute top-1 right-1 p-1 rounded-full hover:bg-gray-600 focus:outline-none z-10">
@@ -145,7 +145,7 @@
 
             <!-- Contenedor Colapsable -->
             <div id="collapsible-controls" class="w-full">
-                <div class="pt-3 mt-2 border-t border-gray-700 flex flex-col md:flex-row items-stretch gap-3 w-full">
+                <div class="pt-2 mt-2 border-t border-gray-700 flex flex-col md:flex-row items-stretch gap-3 w-full">
                     
                     <!-- Card: Controles de Densidad -->
                     <div class="w-full md:flex-1 bg-gray-900/50 p-2 rounded-lg">
@@ -449,7 +449,7 @@
 
             function init() {
                 scene = new THREE.Scene();
-                scene.background = new THREE.Color(0xffffff); 
+                scene.background = new THREE.Color(0xffffff); // White background
                 const container = document.getElementById('canvas-container');
 
                 const aspect = window.innerWidth / window.innerHeight;
@@ -460,8 +460,25 @@
 
                 renderer = new THREE.WebGLRenderer({ antialias: true });
                 renderer.setSize(window.innerWidth, window.innerHeight);
+                renderer.shadowMap.enabled = true;
+                renderer.shadowMap.type = THREE.PCFSoftShadowMap;
                 container.appendChild(renderer.domElement);
-                scene.add(new THREE.AmbientLight(0xffffff, 0.9));
+                
+                // --- Iluminación para Modo Claro con Sombras ---
+                scene.add(new THREE.AmbientLight(0xffffff, 0.8));
+                const directionalLight = new THREE.DirectionalLight(0xffffff, 0.7);
+                directionalLight.position.set(-80, 100, 50);
+                directionalLight.castShadow = true;
+                directionalLight.shadow.mapSize.width = 2048;
+                directionalLight.shadow.mapSize.height = 2048;
+                directionalLight.shadow.camera.left = -200;
+                directionalLight.shadow.camera.right = 200;
+                directionalLight.shadow.camera.top = 200;
+                directionalLight.shadow.camera.bottom = -200;
+                directionalLight.shadow.camera.near = 1;
+                directionalLight.shadow.camera.far = 500;
+                scene.add(directionalLight);
+
 
                 createGround(); 
                 createRoads(); 
@@ -495,17 +512,34 @@
             }
 
             function createGround() {
-                const ground = new THREE.Mesh(new THREE.PlaneGeometry(2000, 2000), new THREE.MeshBasicMaterial({ color: 0xeeeeee }));
-                ground.rotation.x = -Math.PI / 2; ground.position.y = -0.1; 
+                const ground = new THREE.Mesh(
+                    new THREE.PlaneGeometry(2000, 2000), 
+                    new THREE.MeshStandardMaterial({ color: 0xffffff })
+                );
+                ground.rotation.x = -Math.PI / 2;
+                ground.position.y = -0.1;
                 scene.add(ground);
+
+                const grid = new THREE.GridHelper(2000, 100, 0xcccccc, 0xdddddd);
+                grid.position.y = -0.09;
+                scene.add(grid);
             }
 
             function createRoads() {
-                const roadMat = new THREE.MeshBasicMaterial({ color: 0x696969 });
-                const roadV = new THREE.Mesh(new THREE.PlaneGeometry(ROAD_WIDTH_V, ROAD_LENGTH), roadMat);
-                roadV.rotation.x = -Math.PI / 2; scene.add(roadV);
-                const roadH = new THREE.Mesh(new THREE.PlaneGeometry(ROAD_LENGTH, ROAD_WIDTH_H), roadMat);
-                roadH.rotation.x = -Math.PI / 2; scene.add(roadH);
+                const roadMaterial = new THREE.MeshStandardMaterial({
+                    color: 0x505050,
+                    roughness: 0.8,
+                    metalness: 0.0,
+                });
+
+                const roadV = new THREE.Mesh(new THREE.PlaneGeometry(ROAD_WIDTH_V, ROAD_LENGTH), roadMaterial);
+                roadV.rotation.x = -Math.PI / 2;
+                roadV.receiveShadow = true;
+                scene.add(roadV);
+                const roadH = new THREE.Mesh(new THREE.PlaneGeometry(ROAD_LENGTH, ROAD_WIDTH_H), roadMaterial);
+                roadH.rotation.x = -Math.PI / 2;
+                roadH.receiveShadow = true;
+                scene.add(roadH);
 
                 const stopLineMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
                 const createStopLine = (w, h, x, z) => {
@@ -517,7 +551,11 @@
                 createStopLine(1.5, LANE_WIDTH_H, STOP_LINE_E, -LANE_CENTER_H);
                 createStopLine(1.5, LANE_WIDTH_H, STOP_LINE_W, LANE_CENTER_H);
 
-                const yellow = new THREE.MeshBasicMaterial({ color: 0xfacc15 });
+                const yellow = new THREE.MeshStandardMaterial({ 
+                    color: 0xfacc15, 
+                    roughness: 0.8, 
+                    metalness: 0.1,
+                });
                 const createMedian = (w, h, x, z, rotation) => {
                     const group = new THREE.Group();
                     const body = new THREE.Mesh(new THREE.PlaneGeometry(w, h), yellow);
@@ -674,8 +712,8 @@
             
             function createVehicleMesh(vehicleType, color, width, length) {
                 const grp = new THREE.Group();
-                const mat = new THREE.MeshStandardMaterial({ color: color });
-                const darkMat = new THREE.MeshStandardMaterial({ color: 0x333333 });
+                const mat = new THREE.MeshStandardMaterial({ color: color, roughness: 0.2, metalness: 0.5 });
+                const darkMat = new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.4, metalness: 0.1 });
 
                 if (vehicleType.name === 'CAR') {
                     const body = new THREE.Mesh(new THREE.BoxGeometry(width, 1.5, length), mat);
@@ -700,6 +738,8 @@
                     grp.add(seat);
                 }
                 
+                grp.traverse(child => { if(child.isMesh) { child.castShadow = true; } });
+
                 const lightY = 0.85;
 
                 // Headlights & Taillights
