@@ -18,7 +18,7 @@
         #canvas-container { width: 100vw; height: 100vh; display: block; position: absolute; top: 0; left: 0; z-index: 0; }
         
         .ui-panel {
-            background-color: rgba(17, 24, 39, 0.75);
+            background-color: rgba(17, 24, 39, 0.7);
             border: 1px solid #374151;
             backdrop-filter: blur(4px);
         }
@@ -39,9 +39,9 @@
             transition: all 0.2s ease-in-out;
             
             /* Talla para móviles */
-            font-size: 0.9rem;
-            padding: 0.15rem 0.4rem;
-            min-width: 36px;
+            font-size: 0.7rem;
+            padding: 0.1rem 0.3rem;
+            min-width: 28px;
         }
         .sensor-label {
             display: block;
@@ -49,18 +49,18 @@
             text-transform: uppercase;
             margin-top: -2px;
              /* Talla para móviles */
-            font-size: 0.45rem;
+            font-size: 0.4rem;
         }
 
         /* Tallas para pantallas más grandes */
         @media (min-width: 768px) {
             .sensor-counter {
-                font-size: 1.3rem;
-                padding: 0.3rem 0.7rem;
-                min-width: 45px;
+                font-size: 1.0rem;
+                padding: 0.2rem 0.5rem;
+                min-width: 36px;
             }
             .sensor-label {
-                font-size: 0.55rem;
+                font-size: 0.5rem;
             }
         }
     </style>
@@ -72,12 +72,12 @@
     <div id="canvas-container"></div>
     
     <!-- UI: Barra de Título Superior -->
-    <div class="absolute top-0 left-0 right-0 p-4 z-20 pointer-events-none">
-        <div class="ui-panel max-w-xs mx-auto rounded-lg shadow-xl text-white pointer-events-auto text-center py-1 px-4">
-            <div class="flex items-center justify-center gap-3">
-                 <h1 class="text-lg font-bold text-cyan-400">Semáforos Inteligentes</h1>
+    <div class="absolute top-0 left-0 right-0 p-2 z-20 pointer-events-none">
+        <div class="ui-panel max-w-xs mx-auto rounded-lg shadow-xl text-white pointer-events-auto text-center py-0.5 px-3">
+            <div class="flex items-center justify-center gap-2">
+                 <h1 class="text-base font-bold text-cyan-400">Semáforos Inteligentes</h1>
                  <a href="https://www.instagram.com/3d_mc_3d/reels/?next=%2F" target="_blank" rel="noopener noreferrer" class="pointer-events-auto">
-                    <img src="https://raw.githubusercontent.com/MauroCasarin/SEMAFOROS/refs/heads/main/Logo%20MC.png" alt="MC Logo" class="h-6 w-6 transition-transform hover:scale-110">
+                    <img src="https://raw.githubusercontent.com/MauroCasarin/SEMAFOROS/refs/heads/main/Logo%20MC.png" alt="MC Logo" class="h-5 w-5 transition-transform hover:scale-110">
                  </a>
             </div>
         </div>
@@ -104,11 +104,11 @@
 
     <!-- UI: Panel de Control Inferior Unificado -->
     <div class="absolute bottom-4 left-4 right-4 flex justify-center pointer-events-none z-20">
-        <div class="ui-panel p-2 rounded-xl shadow-2xl text-white pointer-events-auto flex flex-col md:flex-row items-center gap-3 w-full max-w-xs md:max-w-md md:justify-between">
+        <div class="ui-panel p-2 md:p-3 rounded-xl shadow-2xl text-white pointer-events-auto flex flex-col md:flex-row items-center gap-3 w-full max-w-xs md:max-w-md md:gap-0 md:justify-between">
             
             <!-- Controles de Densidad -->
-            <div class="w-full md:w-auto">
-                <div class="mb-2 md:mb-3">
+            <div class="w-full md:flex-1 md:pr-4">
+                <div class="mb-2">
                     <label class="block text-xs md:text-sm font-bold mb-1 text-cyan-400 flex justify-between">
                         <span>Densidad N-S</span>
                         <span id="density-val-ns">50%</span>
@@ -124,22 +124,35 @@
                     <input id="density-slider-ew" type="range" min="1" max="100" value="50" 
                            class="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-cyan-400">
                 </div>
+                
+                <!-- Estadísticas de Vehículos -->
+                <div class="mt-3 pt-2 border-t border-gray-700 text-xs">
+                    <div class="flex justify-between text-gray-400">
+                        <span>TOTAL VEHICULOS:</span>
+                        <span id="total-vehicles-count" class="font-bold text-white">0</span>
+                    </div>
+                    <div class="flex justify-between text-gray-400 mt-1">
+                        <span>VEHICULOS DETENIDOS:</span>
+                        <span id="stopped-vehicles-count" class="font-bold text-white">0</span>
+                    </div>
+                </div>
+
             </div>
 
             <!-- Separador vertical para vista de escritorio -->
-            <div class="hidden md:block w-px h-16 bg-gray-700"></div>
+            <div class="hidden md:block w-px self-stretch bg-gray-600"></div>
 
             <!-- Control de Modo -->
-            <div class="flex items-center gap-4">
-                <div>
-                    <p class="text-xs text-gray-400 mb-1 uppercase tracking-wider text-center md:text-left">Estado</p>
-                    <div class="flex items-center gap-2">
+            <div class="flex items-center justify-between w-full md:w-auto md:pl-4 mt-2 md:mt-0 md:gap-4">
+                <div class="text-center md:text-left">
+                    <p class="text-xs text-gray-400 mb-1 uppercase tracking-wider">Estado</p>
+                    <div class="flex items-center justify-center md:justify-start gap-2">
                         <div id="status-dot" class="w-3 h-3 rounded-full bg-green-500 animate-pulse"></div>
                         <span id="status-text" class="font-bold text-sm">INTELIGENTE</span>
                     </div>
                 </div>
                 <button id="mode-btn" 
-                        class="px-4 py-2 rounded-lg font-bold transition-all bg-cyan-600 hover:bg-cyan-500 text-white shadow text-sm border-b-2 border-cyan-800 active:border-b-0 active:translate-y-0.5">
+                        class="px-3 py-1.5 md:px-4 md:py-2 rounded-lg font-bold transition-all bg-cyan-600 hover:bg-cyan-500 text-white shadow text-sm border-b-2 border-cyan-800 active:border-b-0 active:translate-y-0.5 whitespace-nowrap">
                     Cambiar
                 </button>
             </div>
@@ -505,7 +518,7 @@
                 // Create invisible targets for the UI counters next to traffic lights
                 const lightHousingOffsetX = ROAD_WIDTH_V / 2 + 3;
                 const lightHousingOffsetZ = ROAD_WIDTH_H / 2 + 3;
-                const counterOffset = 7; // How far from the light post the counter should be
+                const counterOffset = 12; // How far from the light post the counter should be
 
                 const createTarget = (name, x, z) => {
                     const target = new THREE.Object3D();
@@ -670,7 +683,7 @@
                 
                 if (start && end && control) {
                     c.turnPath = new THREE.QuadraticBezierCurve3(start, control, end);
-                    c.mesh.position.copy(start);
+                    // --- REMOVED: Position snapping that caused the jump ---
                 } else {
                     c.isTurning = false;
                     c.destinationDirection = null;
@@ -682,7 +695,7 @@
                     c.isTurning = false; return;
                 }
 
-                const turnTargetSpeed = c.maxSpeed * 0.8;
+                const turnTargetSpeed = c.maxSpeed * 0.9;
                 c.speed += (turnTargetSpeed - c.speed) * (turnTargetSpeed < c.speed ? c.decelFactor : c.accelFactor);
                 if (c.speed < 0) c.speed = 0;
 
@@ -717,7 +730,17 @@
                     const newPos = c.turnPath.getPointAt(c.turnProgress);
                     const tangent = c.turnPath.getTangentAt(c.turnProgress).normalize();
                     c.mesh.position.copy(newPos);
-                    c.mesh.rotation.y = Math.atan2(tangent.x, tangent.z); // Adjust for vehicle model orientation
+                    
+                    // --- NEW: Smoothly interpolate rotation to prevent snapping ---
+                    const targetRotation = Math.atan2(tangent.x, tangent.z);
+                    const rotationSpeed = 0.25; // Controls how quickly the car's rotation adjusts
+                    
+                    // Handle angle wrapping around PI and -PI for smooth interpolation
+                    let rotationDifference = targetRotation - c.mesh.rotation.y;
+                    while (rotationDifference < -Math.PI) rotationDifference += 2 * Math.PI;
+                    while (rotationDifference > Math.PI) rotationDifference -= 2 * Math.PI;
+
+                    c.mesh.rotation.y += rotationDifference * rotationSpeed;
                 }
             }
             
@@ -887,6 +910,13 @@
                     else if (c.direction === Direction.EAST)  { light = controller.stateH; stopLine = STOP_LINE_W; pos = c.mesh.position.x; distStop = stopLine - pos; }
                     else if (c.direction === Direction.WEST)  { light = controller.stateH; stopLine = STOP_LINE_E; pos = c.mesh.position.x; distStop = pos - stopLine; }
                     
+                    // --- MODIFIED: Adjust speed and approach for more confident turning ---
+                    const PREPARE_TURN_DISTANCE = 35;
+                    const TURN_SPEED_FACTOR = 0.9;
+                    if (c.wantsToTurn && distStop > 0 && distStop < PREPARE_TURN_DISTANCE) {
+                        targetSpeed = Math.min(targetSpeed, c.maxSpeed * TURN_SPEED_FACTOR);
+                    }
+                    
                     if (c.wantsToTurn && !c.isTurning && c.blinkerState === 'off' && distStop > 0 && distStop < INDICATOR_DISTANCE) {
                         c.blinkerState = 'left'; // All implemented turns are left turns
                     }
@@ -908,14 +938,6 @@
 
                     const frontBumperDist = distStop - carLength / 2;
                     let canTurn = light === LightState.GREEN;
-                    if(c.wantsToTurn) {
-                        const turnTriggerDist = 1; 
-                        if ( (c.direction === Direction.SOUTH && c.mesh.position.z > -ROAD_WIDTH_H/2 - turnTriggerDist) ||
-                             (c.direction === Direction.NORTH && c.mesh.position.z <  ROAD_WIDTH_H/2 + turnTriggerDist) ||
-                             (c.direction === Direction.EAST  && c.mesh.position.x > -ROAD_WIDTH_V/2 - turnTriggerDist) ||
-                             (c.direction === Direction.WEST  && c.mesh.position.x <  ROAD_WIDTH_V/2 + turnTriggerDist) ) 
-                        { if (canTurn) { startTurn(c); continue; } }
-                    }
 
                     const mustStopForLight = !canTurn && distStop > 0;
                     if (mustStopForLight && frontBumperDist < 60) {
@@ -926,6 +948,30 @@
                     
                     c.speed += (targetSpeed - c.speed) * (targetSpeed < c.speed ? c.decelFactor : c.accelFactor);
                     if (c.speed < 0) c.speed = 0;
+
+                    // --- NEW SEAMLESS TURN TRIGGER ---
+                    if (c.wantsToTurn && !c.isTurning && canTurn && c.speed > 0) {
+                        let distToTurnPoint = Infinity;
+                        if (c.direction === Direction.SOUTH) distToTurnPoint = (-ROAD_WIDTH_H / 2) - c.mesh.position.z;
+                        else if (c.direction === Direction.NORTH) distToTurnPoint = c.mesh.position.z - (ROAD_WIDTH_H / 2);
+                        else if (c.direction === Direction.WEST) distToTurnPoint = c.mesh.position.x - (ROAD_WIDTH_V / 2);
+                        else if (c.direction === Direction.EAST) distToTurnPoint = (-ROAD_WIDTH_V / 2) - c.mesh.position.x;
+                        
+                        const movementInFrame = c.speed * dt;
+                        if (distToTurnPoint > 0 && distToTurnPoint <= movementInFrame) {
+                            const timeToReach = distToTurnPoint / c.speed;
+                            const remainingDt = dt - timeToReach;
+                            
+                            c.mesh.translateZ(distToTurnPoint);
+                            startTurn(c);
+                            
+                            if (c.isTurning) {
+                                updateTurn(c, remainingDt);
+                            }
+                            continue;
+                        }
+                    }
+
 
                     let movement = c.speed * dt;
                     const COLLISION_BUFFER = 2.5; const BRAKE_BUFFER = 1.5;
@@ -954,6 +1000,14 @@
                 });
                 Object.keys(counts).forEach(k => { if (counters[k] && counters[k].val) counters[k].val.innerText = counts[k]; });
                 return counts;
+            }
+
+            function updateVehicleStats() {
+                const totalVehicles = cars.length;
+                const stoppedVehicles = cars.filter(c => c.speed < 0.1).length;
+
+                document.getElementById('total-vehicles-count').innerText = totalVehicles;
+                document.getElementById('stopped-vehicles-count').innerText = stoppedVehicles;
             }
 
             function updateUIProject() {
@@ -988,6 +1042,7 @@
                 
                 updateCars(dt);
                 const counts = updateCounters();
+                updateVehicleStats();
                 controller.updateLogic(dt, counts);
                 updateUIProject();
                 renderer.render(scene, camera);
