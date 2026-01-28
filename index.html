@@ -367,7 +367,7 @@
                 let isDragging = false;
                 let dragOffsetX, dragOffsetY;
 
-                panel.addEventListener('mousedown', (e) => {
+                const onStartDrag = (e) => {
                     const target = e.target;
                     if (target.tagName === 'INPUT' || target.tagName === 'BUTTON' || target === resizeHandle) {
                         return;
@@ -379,7 +379,6 @@
                     panel.style.cursor = 'grabbing';
                     
                     const rect = panel.getBoundingClientRect();
-                    
                     if (panel.style.transform.includes('translateX')) {
                         panel.style.transform = 'none';
                         panel.style.left = `${rect.left}px`;
@@ -387,28 +386,38 @@
                         panel.style.bottom = 'auto';
                         panel.style.right = 'auto';
                     }
-
-                    dragOffsetX = e.clientX - panel.offsetLeft;
-                    dragOffsetY = e.clientY - panel.offsetTop;
+                    const clientX = e.type === 'touchstart' ? e.touches[0].clientX : e.clientX;
+                    const clientY = e.type === 'touchstart' ? e.touches[0].clientY : e.clientY;
+                    dragOffsetX = clientX - panel.offsetLeft;
+                    dragOffsetY = clientY - panel.offsetTop;
 
                     window.addEventListener('mousemove', onDrag);
+                    window.addEventListener('touchmove', onDrag, { passive: false });
                     window.addEventListener('mouseup', onStopDrag, { once: true });
-                });
+                    window.addEventListener('touchend', onStopDrag, { once: true });
+                };
 
-                function onDrag(e) {
+                const onDrag = (e) => {
                     if (!isDragging) return;
-                    panel.style.left = `${e.clientX - dragOffsetX}px`;
-                    panel.style.top = `${e.clientY - dragOffsetY}px`;
-                }
+                    e.preventDefault();
+                    const clientX = e.type === 'touchmove' ? e.touches[0].clientX : e.clientX;
+                    const clientY = e.type === 'touchmove' ? e.touches[0].clientY : e.clientY;
+                    panel.style.left = `${clientX - dragOffsetX}px`;
+                    panel.style.top = `${clientY - dragOffsetY}px`;
+                };
 
-                function onStopDrag() {
+                const onStopDrag = () => {
                     isDragging = false;
                     document.body.style.userSelect = '';
                     panel.style.cursor = 'move';
                     window.removeEventListener('mousemove', onDrag);
-                }
+                    window.removeEventListener('touchmove', onDrag);
+                };
                 
-                resizeHandle.addEventListener('mousedown', (e) => {
+                panel.addEventListener('mousedown', onStartDrag);
+                panel.addEventListener('touchstart', onStartDrag, { passive: true });
+                
+                const onStartResize = (e) => {
                     e.stopPropagation();
                     e.preventDefault();
                     document.body.style.userSelect = 'none';
@@ -416,25 +425,34 @@
                     const rect = panel.getBoundingClientRect();
                     const initialWidth = rect.width;
                     const initialHeight = rect.height;
-                    const initialMouseX = e.clientX;
-                    const initialMouseY = e.clientY;
+                    const initialMouseX = e.type === 'touchstart' ? e.touches[0].clientX : e.clientX;
+                    const initialMouseY = e.type === 'touchstart' ? e.touches[0].clientY : e.clientY;
 
-                    function onResize(moveEvent) {
-                        const dx = moveEvent.clientX - initialMouseX;
-                        const dy = moveEvent.clientY - initialMouseY;
+                    const onResize = (moveEvent) => {
+                        const clientX = moveEvent.type === 'touchmove' ? moveEvent.touches[0].clientX : moveEvent.clientX;
+                        const clientY = moveEvent.type === 'touchmove' ? moveEvent.touches[0].clientY : moveEvent.clientY;
+                        const dx = clientX - initialMouseX;
+                        const dy = clientY - initialMouseY;
                         panel.style.width = `${initialWidth + dx}px`;
                         panel.style.height = `${initialHeight + dy}px`;
-                    }
+                    };
 
-                    function onStopResize() {
+                    const onStopResize = () => {
                         document.body.style.userSelect = '';
                         window.removeEventListener('mousemove', onResize);
+                        window.removeEventListener('touchmove', onResize);
                         window.removeEventListener('mouseup', onStopResize);
-                    }
+                        window.removeEventListener('touchend', onStopResize);
+                    };
                     
                     window.addEventListener('mousemove', onResize);
+                    window.addEventListener('touchmove', onResize, { passive: false });
                     window.addEventListener('mouseup', onStopResize, { once: true });
-                });
+                    window.addEventListener('touchend', onStopResize, { once: true });
+                };
+
+                resizeHandle.addEventListener('mousedown', onStartResize);
+                resizeHandle.addEventListener('touchstart', onStartResize, { passive: false });
             }
 
             function init() {
