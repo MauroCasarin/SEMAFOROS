@@ -251,7 +251,7 @@
                     baseLength: 12.0,
                     baseWidth: 3.4,
                     maxSpeed: [18, 12],
-                    accelFactor: [0.03, 0.01],
+                    accelFactor: [0.04, 0.01],
                     decelFactor: [0.12, 0.04],
                     colorPool: [0xffffff, 0xfde047, 0xbe123c, 0x2563eb]
                 },
@@ -790,7 +790,7 @@
 
                 // Headlights & Taillights
                 const headLightMat = new THREE.MeshBasicMaterial({ color: 0xffffaa });
-                const tailLightMat = new THREE.MeshBasicMaterial({ color: 0xdd0000 });
+                const tailLightMat = new THREE.MeshStandardMaterial({ color: 0xdd0000, emissive: 0xdd0000, emissiveIntensity: 0.4, roughness: 0.8 });
                 const lightWidth = Math.max(0.2, width * 0.2);
 
                 const leftHeadLight = new THREE.Mesh(new THREE.BoxGeometry(lightWidth, 0.5, 0.2), headLightMat);
@@ -803,10 +803,12 @@
 
                 const leftTailLight = new THREE.Mesh(new THREE.BoxGeometry(lightWidth, 0.5, 0.2), tailLightMat);
                 leftTailLight.position.set(-width / 2.5, lightY, -length / 2 - 0.01);
+                leftTailLight.name = "leftTailLight";
                 grp.add(leftTailLight);
                 
-                const rightTailLight = new THREE.Mesh(new THREE.BoxGeometry(lightWidth, 0.5, 0.2), tailLightMat);
+                const rightTailLight = new THREE.Mesh(new THREE.BoxGeometry(lightWidth, 0.5, 0.2), tailLightMat.clone());
                 rightTailLight.position.set(width / 2.5, lightY, -length / 2 - 0.01);
+                rightTailLight.name = "rightTailLight";
                 grp.add(rightTailLight);
 
                 // Indicators
@@ -942,8 +944,8 @@
             function spawnVehicle(axis) {
                 const rand = Math.random();
                 let vehicleType;
-                if (rand < 0.65) vehicleType = VEHICLE_TYPES.CAR;
-                else if (rand < 0.75) vehicleType = VEHICLE_TYPES.TRUCK;
+                if (rand < 0.70) vehicleType = VEHICLE_TYPES.CAR;
+                else if (rand < 0.83) vehicleType = VEHICLE_TYPES.TRUCK;
                 else if (rand < 0.85) vehicleType = VEHICLE_TYPES.BUS;
                 else vehicleType = VEHICLE_TYPES.MOTORCYCLE;
 
@@ -955,6 +957,8 @@
                 const vehicle = { 
                     mesh: null, 
                     indicators: null,
+                    tailLightMaterials: [],
+                    isBraking: false,
                     direction: null, 
                     speed: 0, 
                     maxSpeed: vehicleType.maxSpeed[0] + Math.random() * vehicleType.maxSpeed[1],
@@ -1043,6 +1047,12 @@
 
                 mesh.position.set(x, 0, z); mesh.rotation.y = rot; scene.add(mesh);
                 vehicle.mesh = mesh; 
+                
+                const leftLight = mesh.getObjectByName("leftTailLight");
+                const rightLight = mesh.getObjectByName("rightTailLight");
+                if (leftLight) vehicle.tailLightMaterials.push(leftLight.material);
+                if (rightLight) vehicle.tailLightMaterials.push(rightLight.material);
+
                 vehicle.indicators = {
                     fr: mesh.getObjectByName("indicator_fr"),
                     rr: mesh.getObjectByName("indicator_rr"),
@@ -1142,6 +1152,21 @@
                         targetSpeed = Math.min(targetSpeed, desiredSpeed);
                     }
                     
+                    const isCurrentlyBraking = targetSpeed < c.speed && c.speed > 0.1;
+                    if (isCurrentlyBraking !== c.isBraking) {
+                        c.isBraking = isCurrentlyBraking;
+                        if (c.tailLightMaterials.length > 0) {
+                            const emissiveColor = c.isBraking ? 0xff0000 : 0xdd0000;
+                            const emissiveIntensity = c.isBraking ? 2.5 : 0.4;
+                            c.tailLightMaterials.forEach(mat => {
+                                if (mat.emissive) {
+                                    mat.emissive.setHex(emissiveColor);
+                                    mat.emissiveIntensity = emissiveIntensity;
+                                }
+                            });
+                        }
+                    }
+
                     c.speed += (targetSpeed - c.speed) * (targetSpeed < c.speed ? c.decelFactor : c.accelFactor);
                     if (c.speed < 0) c.speed = 0;
 
