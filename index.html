@@ -246,6 +246,15 @@
                     decelFactor: [0.15, 0.05],
                     colorPool: [0x4b5563, 0x78716c, 0x064e3b, 0x92400e]
                 },
+                BUS: {
+                    name: 'BUS',
+                    baseLength: 12.0,
+                    baseWidth: 3.4,
+                    maxSpeed: [18, 12],
+                    accelFactor: [0.03, 0.01],
+                    decelFactor: [0.12, 0.04],
+                    colorPool: [0xffffff, 0xfde047, 0xbe123c, 0x2563eb]
+                },
                 MOTORCYCLE: {
                     name: 'MOTORCYCLE',
                     baseLength: 3.5,
@@ -289,8 +298,7 @@
                     this.PRE_GREEN_YELLOW_TIME = 1.0;
                     this.FIXED_TIME = 20.0; 
 
-                    this.buildInfrastructure(scene); 
-                    this.updateVisuals();           
+                    this.buildInfrastructure(scene);          
                 }
 
                 buildInfrastructure(scene) {
@@ -299,7 +307,14 @@
                         const housingMat = new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.5 });
                         const housing = new THREE.Mesh(new THREE.BoxGeometry(3.5, 5, 3.5), housingMat);
 
-                        const colorBulb = new THREE.Mesh(new THREE.SphereGeometry(1.1, 16, 16), new THREE.MeshBasicMaterial({ color: 0x111111 }));
+                        const bulbMat = new THREE.MeshStandardMaterial({ 
+                            color: 0x111111,
+                            emissive: 0x111111,
+                            emissiveIntensity: 0,
+                            roughness: 0.8,
+                            metalness: 0.2
+                        });
+                        const colorBulb = new THREE.Mesh(new THREE.SphereGeometry(1.1, 16, 16), bulbMat);
                         colorBulb.position.set(0, 0, 1.8);
 
                         housing.add(colorBulb);
@@ -321,19 +336,43 @@
                     };
                 }
 
-                updateLightVisuals(lightObject, state) {
-                    let color = 0x111111;
-                    if (state === LightState.RED) color = 0xff0000;
-                    else if (state === LightState.GREEN) color = 0x00ff00;
-                    else if (state === LightState.YELLOW) color = 0xffaa00;
-                    lightObject.colorBulb.material.color.setHex(color);
-                }
+                animateLights(elapsedTime) {
+                    const OFF_COLOR = 0x111111;
+                    const RED_COLOR = 0xff0000;
+                    const YELLOW_COLOR = 0xffaa00;
+                    const GREEN_COLOR = 0x00ff00;
 
-                updateVisuals() {
-                    this.updateLightVisuals(this.lights.north, this.stateV);
-                    this.updateLightVisuals(this.lights.south, this.stateV);
-                    this.updateLightVisuals(this.lights.east, this.stateH);
-                    this.updateLightVisuals(this.lights.west, this.stateH);
+                    const applyStateToMaterial = (material, state) => {
+                        switch(state) {
+                            case LightState.GREEN:
+                                material.color.setHex(GREEN_COLOR);
+                                material.emissive.setHex(GREEN_COLOR);
+                                const pulse = (Math.sin(elapsedTime * 5) + 1) / 2; // Varies between 0 and 1
+                                material.emissiveIntensity = 1.0 + pulse * 0.5;
+                                break;
+                            case LightState.RED:
+                                material.color.setHex(RED_COLOR);
+                                material.emissive.setHex(RED_COLOR);
+                                const flicker = Math.random() > 0.96 ? -0.4 : 0; // Occasional flicker
+                                material.emissiveIntensity = 1.2 + flicker;
+                                break;
+                            case LightState.YELLOW:
+                                material.color.setHex(YELLOW_COLOR);
+                                material.emissive.setHex(YELLOW_COLOR);
+                                material.emissiveIntensity = 1.5; // Bright and constant
+                                break;
+                            default: // OFF
+                                material.color.setHex(OFF_COLOR);
+                                material.emissive.setHex(OFF_COLOR);
+                                material.emissiveIntensity = 0;
+                                break;
+                        }
+                    };
+                    
+                    applyStateToMaterial(this.lights.north.colorBulb.material, this.stateV);
+                    applyStateToMaterial(this.lights.south.colorBulb.material, this.stateV);
+                    applyStateToMaterial(this.lights.east.colorBulb.material, this.stateH);
+                    applyStateToMaterial(this.lights.west.colorBulb.material, this.stateH);
                 }
 
                 switchLight(giveGreenTo) {
@@ -361,7 +400,7 @@
                     this.timerV += dt;
                     this.timerH += dt;
 
-                    if (this.transitioning) { this.updateVisuals(); return; }
+                    if (this.transitioning) { return; }
 
                     if (isSmartMode) {
                         const totalV = counts.a1 + counts.a5;
@@ -375,7 +414,6 @@
                         if (this.stateV === LightState.GREEN && this.timerV > this.FIXED_TIME) this.switchLight('H');
                         else if (this.stateH === LightState.GREEN && this.timerH > this.FIXED_TIME) this.switchLight('V');
                     }
-                    this.updateVisuals();
                 }
             }
 
@@ -730,6 +768,13 @@
                     const trailer = new THREE.Mesh(new THREE.BoxGeometry(width * 0.95, 2.5, length * 0.65), darkMat);
                     trailer.position.set(0, 1.25, -length * 0.175);
                     grp.add(trailer);
+                } else if (vehicleType.name === 'BUS') {
+                    const body = new THREE.Mesh(new THREE.BoxGeometry(width, 2.8, length), mat);
+                    body.position.y = 1.4;
+                    grp.add(body);
+                    const windows = new THREE.Mesh(new THREE.BoxGeometry(width * 1.01, 1.4, length * 0.85), darkMat);
+                    windows.position.set(0, 2.101, 0);
+                    grp.add(windows);
                 } else if (vehicleType.name === 'MOTORCYCLE') {
                     const body = new THREE.Mesh(new THREE.BoxGeometry(width, 0.8, length), mat);
                     body.position.y = 0.6;
@@ -897,8 +942,9 @@
             function spawnVehicle(axis) {
                 const rand = Math.random();
                 let vehicleType;
-                if (rand < 0.7) vehicleType = VEHICLE_TYPES.CAR;
-                else if (rand < 0.85) vehicleType = VEHICLE_TYPES.TRUCK;
+                if (rand < 0.65) vehicleType = VEHICLE_TYPES.CAR;
+                else if (rand < 0.75) vehicleType = VEHICLE_TYPES.TRUCK;
+                else if (rand < 0.85) vehicleType = VEHICLE_TYPES.BUS;
                 else vehicleType = VEHICLE_TYPES.MOTORCYCLE;
 
                 const lengthMultiplier = 0.9 + Math.random() * 0.2;
@@ -1194,6 +1240,7 @@
                 const counts = updateCounters();
                 updateVehicleStats();
                 controller.updateLogic(dt, counts);
+                controller.animateLights(elapsedTime);
                 updateUIProject();
                 renderer.render(scene, camera);
             }
