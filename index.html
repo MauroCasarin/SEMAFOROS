@@ -14,7 +14,8 @@
         "imports": {
             "three": "https://unpkg.com/three@0.140.0/build/three.module.js",
             "three/examples/jsm/loaders/FontLoader.js": "https://unpkg.com/three@0.140.0/examples/jsm/loaders/FontLoader.js",
-            "three/examples/jsm/geometries/TextGeometry.js": "https://unpkg.com/three@0.140.0/examples/jsm/geometries/TextGeometry.js"
+            "three/examples/jsm/geometries/TextGeometry.js": "https://unpkg.com/three@0.140.0/examples/jsm/geometries/TextGeometry.js",
+            "three/examples/jsm/controls/OrbitControls.js": "https://unpkg.com/three@0.140.0/examples/jsm/controls/OrbitControls.js"
         }
     }
     </script>
@@ -185,9 +186,9 @@
                         </div>
                     </div>
 
-                    <!-- Card: Control de Modo -->
+                    <!-- Card: Control de Modo y Vista -->
                     <div class="w-full md:w-auto bg-gray-900/50 p-2 rounded-lg flex flex-col justify-center items-center">
-                        <h3 class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2 text-center">Modo</h3>
+                        <h3 class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2 text-center">Controles</h3>
                         <div class="flex items-center justify-around w-full gap-4">
                             <div class="text-center">
                                 <div class="flex items-center justify-center gap-2">
@@ -195,9 +196,19 @@
                                     <span id="status-text" class="font-bold text-sm">INTELIGENTE</span>
                                 </div>
                             </div>
-                            <button id="mode-btn" 
-                                    class="px-3 py-1.5 rounded-lg font-bold transition-all bg-cyan-600 hover:bg-cyan-500 text-white shadow text-sm border-b-2 border-cyan-800 active:border-b-0 active:translate-y-0.5 whitespace-nowrap">
+                            <button id="mode-btn" class="px-3 py-1.5 rounded-lg font-bold transition-all bg-cyan-600 hover:bg-cyan-500 text-white shadow text-sm border-b-2 border-cyan-800 active:border-b-0 active:translate-y-0.5 whitespace-nowrap">
                                 Cambiar
+                            </button>
+                        </div>
+                        <div class="flex items-center justify-around w-full gap-4 mt-2 pt-2 border-t border-gray-700/50">
+                            <div class="text-center">
+                                <div class="flex items-center justify-center gap-2">
+                                    <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg>
+                                    <span id="camera-status-text" class="font-bold text-sm">SUPERIOR</span>
+                                </div>
+                            </div>
+                            <button id="camera-mode-btn" class="px-3 py-1.5 rounded-lg font-bold transition-all bg-sky-600 hover:bg-sky-500 text-white shadow text-sm border-b-2 border-sky-800 active:border-b-0 active:translate-y-0.5 whitespace-nowrap">
+                                Vista 3D
                             </button>
                         </div>
                     </div>
@@ -214,6 +225,7 @@
         import * as THREE from 'three';
         import { FontLoader } from 'three/examples/jsm/loaders/FontLoader.js';
         import { TextGeometry } from 'three/examples/jsm/geometries/TextGeometry.js';
+        import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 
         // --- CONFIGURACIÓN GEOMÉTRICA (BASADO EN IMAGEN) ---
         const ROAD_WIDTH_V = 40; // Ancho calle Vertical (N-S)
@@ -285,7 +297,8 @@
         };
         
         // Variables Globales
-        let scene, camera, renderer, clock;
+        let scene, camera, renderer, clock, controls;
+        let perspectiveCamera, orthographicCamera;
         let cars = [];
         let densityNS = 50, densityEW = 50;
         let isSmartMode = true;
@@ -527,11 +540,17 @@
             scene.background = new THREE.Color(0xffffff); // White background
             const container = document.getElementById('canvas-container');
 
+            // --- Cámaras ---
             const aspect = window.innerWidth / window.innerHeight;
             const d = 80;
-            camera = new THREE.OrthographicCamera(-d * aspect, d * aspect, d, -d, 1, 1000);
-            camera.position.set(0, 100, 0); 
-            camera.lookAt(0, 0, 0); 
+            orthographicCamera = new THREE.OrthographicCamera(-d * aspect, d * aspect, d, -d, 1, 1000);
+            orthographicCamera.position.set(0, 100, 0); 
+            orthographicCamera.lookAt(0, 0, 0); 
+
+            perspectiveCamera = new THREE.PerspectiveCamera(60, aspect, 1, 1000);
+            perspectiveCamera.position.set(60, 80, 60);
+
+            camera = orthographicCamera; // Iniciar con vista ortográfica
 
             renderer = new THREE.WebGLRenderer({ antialias: true });
             renderer.setSize(window.innerWidth, window.innerHeight);
@@ -539,6 +558,16 @@
             renderer.shadowMap.type = THREE.PCFSoftShadowMap;
             container.appendChild(renderer.domElement);
             
+            // --- Controles de Cámara ---
+            controls = new OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+            controls.dampingFactor = 0.05;
+            controls.screenSpacePanning = false;
+            controls.minDistance = 20;
+            controls.maxDistance = 250;
+            controls.maxPolarAngle = Math.PI / 2.1;
+            controls.enableRotate = false; // Deshabilitado por defecto para vista superior
+
             // --- Iluminación para Modo Claro con Sombras ---
             scene.add(new THREE.AmbientLight(0xffffff, 0.8));
             const directionalLight = new THREE.DirectionalLight(0xffffff, 0.7);
@@ -578,6 +607,7 @@
                 controller.timerV = 0;
                 controller.timerH = 0;
             });
+            document.getElementById('camera-mode-btn').addEventListener('click', toggleCameraView);
             
             // UI -> 3D Interactivity
             Object.keys(counters).forEach(key => {
@@ -604,6 +634,30 @@
 
             clock = new THREE.Clock();
             animate();
+        }
+        
+        function toggleCameraView() {
+            const cameraButton = document.getElementById('camera-mode-btn');
+            const cameraStatusText = document.getElementById('camera-status-text');
+
+            if (camera === perspectiveCamera) {
+                camera = orthographicCamera;
+                controls.enableRotate = false;
+                controls.object = camera;
+                controls.target.set(0, 0, 0);
+                controls.update();
+                cameraButton.innerText = 'Vista 3D';
+                cameraStatusText.innerText = 'SUPERIOR';
+            } else {
+                camera = perspectiveCamera;
+                controls.enableRotate = true;
+                controls.object = camera;
+                controls.target.set(0, 0, 0);
+                controls.update();
+                cameraButton.innerText = 'Vista Superior';
+                cameraStatusText.innerText = '3D';
+            }
+            onResize();
         }
 
         function createGround() {
@@ -1470,6 +1524,8 @@
             requestAnimationFrame(animate);
             const dt = clock.getDelta() * SIMULATION_SPEED;
             const elapsedTime = clock.getElapsedTime() * SIMULATION_SPEED;
+            
+            controls.update();
 
             if (elapsedTime > nextSpawnTimeNS && cars.length < 150) {
                 spawnVehicle('NS');
@@ -1502,15 +1558,19 @@
             const h = window.innerHeight;
             const aspect = w / h;
             
-            // --- Zoom Adaptable ---
-            const baseD = 80;
-            // Si la pantalla es más alta que ancha (móvil vertical), aleja la cámara
-            // para mantener visible el ancho de la simulación.
-            const d = aspect < 1 ? baseD / aspect : baseD;
+            // Update perspective camera
+            perspectiveCamera.aspect = aspect;
+            perspectiveCamera.updateProjectionMatrix();
 
-            camera.left = -d * aspect; camera.right = d * aspect;
-            camera.top = d; camera.bottom = -d;
-            camera.updateProjectionMatrix();
+            // Update orthographic camera
+            const baseD = 80;
+            const d = aspect < 1 ? baseD / aspect : baseD;
+            orthographicCamera.left = -d * aspect;
+            orthographicCamera.right = d * aspect;
+            orthographicCamera.top = d;
+            orthographicCamera.bottom = -d;
+            orthographicCamera.updateProjectionMatrix();
+            
             renderer.setSize(w, h);
         }
 

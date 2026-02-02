@@ -1,5 +1,5 @@
 {
-  "name": "UI 30/1 Traffic Simulation",
-  "description": "A Three.js traffic simulation web application with intelligent traffic light control for both vehicles and pedestrians. Features vehicle-pedestrian interaction where cars yield to people crossing.",
+  "name": "2/2 Traffic Simulation",
+  "description": "",
   "requestFramePermissions": []
 }
