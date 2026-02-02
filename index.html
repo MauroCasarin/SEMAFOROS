@@ -1284,7 +1284,7 @@
 
             const lightY = 1.0;
             const headLightMat = new THREE.MeshBasicMaterial({ color: 0xffffaa });
-            const tailLightMat = new THREE.MeshStandardMaterial({ color: 0xdd0000, emissive: 0xdd0000, emissiveIntensity: 0.4, roughness: 0.8 });
+            const tailLightMat = new THREE.MeshStandardMaterial({ color: 0xdd0000, emissive: 0xdd0000, emissiveIntensity: 0.5, roughness: 0.8 });
             const lightWidth = Math.max(0.2, width * 0.2);
 
             if (vehicleType.name !== 'MOTORCYCLE') {
@@ -1305,6 +1305,15 @@
                 rightTailLight.position.set(width / 2.5, lightY, -length / 2 - 0.01);
                 rightTailLight.name = "rightTailLight";
                 grp.add(rightTailLight);
+                
+                // Add brake point lights
+                const brakeLight = new THREE.PointLight(0xff0000, 0, 3); // color, intensity, distance
+                brakeLight.name = "leftBrakeLight";
+                leftTailLight.add(brakeLight);
+
+                const rightBrakeLight = brakeLight.clone();
+                rightBrakeLight.name = "rightBrakeLight";
+                rightTailLight.add(rightBrakeLight);
             }
 
             const indicatorMat = new THREE.MeshBasicMaterial({ color: 0xffa500 });
@@ -1453,6 +1462,7 @@
                 mesh: null, 
                 indicators: null,
                 tailLightMaterials: [],
+                brakeLights: null,
                 isBraking: false,
                 direction: null, 
                 speed: 0, 
@@ -1549,6 +1559,10 @@
             if (leftLight) vehicle.tailLightMaterials.push(leftLight.material);
             if (rightLight) vehicle.tailLightMaterials.push(rightLight.material);
 
+            vehicle.brakeLights = {
+                left: mesh.getObjectByName("leftBrakeLight"),
+                right: mesh.getObjectByName("rightBrakeLight")
+            };
             vehicle.indicators = {
                 fr: mesh.getObjectByName("indicator_fr"),
                 rr: mesh.getObjectByName("indicator_rr"),
@@ -1650,15 +1664,24 @@
                 const isCurrentlyBraking = targetSpeed < c.speed && c.speed > 0.1;
                 if (isCurrentlyBraking !== c.isBraking) {
                     c.isBraking = isCurrentlyBraking;
+                    
+                    // More intense material glow
                     if (c.tailLightMaterials.length > 0) {
                         const emissiveColor = c.isBraking ? 0xff0000 : 0xdd0000;
-                        const emissiveIntensity = c.isBraking ? 2.5 : 0.4;
+                        const emissiveIntensity = c.isBraking ? 4.0 : 0.5; // Increased intensity
                         c.tailLightMaterials.forEach(mat => {
                             if (mat.emissive) {
                                 mat.emissive.setHex(emissiveColor);
                                 mat.emissiveIntensity = emissiveIntensity;
                             }
                         });
+                    }
+
+                    // Point light toggle
+                    if (c.brakeLights) {
+                        const lightIntensity = c.isBraking ? 5.0 : 0;
+                        if (c.brakeLights.left) c.brakeLights.left.intensity = lightIntensity;
+                        if (c.brakeLights.right) c.brakeLights.right.intensity = lightIntensity;
                     }
                 }
 
