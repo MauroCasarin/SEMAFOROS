@@ -346,7 +346,7 @@
                     const housingMat = new THREE.MeshStandardMaterial({ color: 0x222222, roughness: 0.5, metalness: 0.5 });
                     const postMat = new THREE.MeshStandardMaterial({ color: 0x333333, roughness: 0.8 });
                     
-                    const post = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.5, 7, 8), postMat);
+                    const post = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.5, 7, 6), postMat);
                     post.position.y = 3.5;
                     group.add(post);
 
@@ -362,7 +362,7 @@
                             roughness: 0.2,
                             metalness: 0.1
                         });
-                        const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.5, 16, 16), bulbMat);
+                        const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.5, 10, 8), bulbMat);
                         bulb.position.set(0, yPos, 0.76);
                         housing.add(bulb);
                         return bulb.material;
@@ -377,7 +377,7 @@
                         emissive: 0x1a1a1a,
                         emissiveIntensity: 0
                     });
-                    const topIndicator = new THREE.Mesh(new THREE.CylinderGeometry(0.7, 0.7, 0.3, 16), topIndicatorMat);
+                    const topIndicator = new THREE.Mesh(new THREE.CylinderGeometry(0.7, 0.7, 0.3, 12), topIndicatorMat);
                     topIndicator.position.y = 9.15; // On top of the housing
                     group.add(topIndicator);
 
@@ -613,6 +613,7 @@
             camera = perspectiveCamera; // Iniciar con vista 3D
 
             renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
             renderer.setSize(window.innerWidth, window.innerHeight);
             renderer.shadowMap.enabled = true;
             renderer.shadowMap.type = THREE.PCFSoftShadowMap;
@@ -633,8 +634,8 @@
             const directionalLight = new THREE.DirectionalLight(0xffffff, 0.7);
             directionalLight.position.set(-80, 100, 50);
             directionalLight.castShadow = true;
-            directionalLight.shadow.mapSize.width = 2048;
-            directionalLight.shadow.mapSize.height = 2048;
+            directionalLight.shadow.mapSize.width = 1024;
+            directionalLight.shadow.mapSize.height = 1024;
             directionalLight.shadow.camera.left = -200;
             directionalLight.shadow.camera.right = 200;
             directionalLight.shadow.camera.top = 200;
@@ -830,10 +831,10 @@
                 const group = new THREE.Group();
                 const body = new THREE.Mesh(new THREE.PlaneGeometry(w, h), yellow);
                 group.add(body);
-                const cap1 = new THREE.Mesh(new THREE.CircleGeometry(w/2, 32), yellow);
+                const cap1 = new THREE.Mesh(new THREE.CircleGeometry(w/2, 16), yellow);
                 cap1.position.y = h/2;
                 group.add(cap1);
-                const cap2 = new THREE.Mesh(new THREE.CircleGeometry(w/2, 32), yellow);
+                const cap2 = new THREE.Mesh(new THREE.CircleGeometry(w/2, 16), yellow);
                 cap2.position.y = -h/2;
                 group.add(cap2);
                 
@@ -1110,7 +1111,7 @@
 
                 // Wheels
                 const wheelWidth = 0.3;
-                const wheelGeo = new THREE.CylinderGeometry(wheelRadius, wheelRadius, wheelWidth, 16);
+                const wheelGeo = new THREE.CylinderGeometry(wheelRadius, wheelRadius, wheelWidth, 10);
                 const wheelY = wheelRadius;
                 const wheelXOffset = width / 2;
                 const wheelZOffset = length / 2 - wheelRadius * 1.5;
@@ -1164,7 +1165,7 @@
                 trailer.position.set(0, wheelRadius + 1.4, -length * 0.175);
                 grp.add(trailer);
                 
-                const stackGeo = new THREE.CylinderGeometry(0.2, 0.2, 3, 8);
+                const stackGeo = new THREE.CylinderGeometry(0.2, 0.2, 3, 6);
                 const stack1 = new THREE.Mesh(stackGeo, bumperMat);
                 stack1.position.set(-width/2 + 0.2, wheelRadius + 1.5, length * 0.1);
                 grp.add(stack1);
@@ -1173,7 +1174,7 @@
                 grp.add(stack2);
 
                 const wheelWidth = 0.4;
-                const wheelGeo = new THREE.CylinderGeometry(wheelRadius, wheelRadius, wheelWidth, 16);
+                const wheelGeo = new THREE.CylinderGeometry(wheelRadius, wheelRadius, wheelWidth, 10);
                 const wheelY = wheelRadius;
                 const wheelXOffset = width / 2;
 
@@ -1230,7 +1231,7 @@
                 grp.add(mirror2);
 
                 const wheelWidth = 0.5;
-                const wheelGeo = new THREE.CylinderGeometry(wheelRadius, wheelRadius, wheelWidth, 16);
+                const wheelGeo = new THREE.CylinderGeometry(wheelRadius, wheelRadius, wheelWidth, 10);
                 const wheelY = wheelRadius;
                 const wheelXOffset = width / 2;
                 
@@ -1266,7 +1267,7 @@
                 grp.add(handlebars);
                 
                 const wheelWidth = 0.2;
-                const wheelGeo = new THREE.CylinderGeometry(wheelRadius, wheelRadius, wheelWidth, 16);
+                const wheelGeo = new THREE.CylinderGeometry(wheelRadius, wheelRadius, wheelWidth, 10);
                 const wheelY = wheelRadius;
                 
                 const frontWheel = new THREE.Mesh(wheelGeo, wheelMat);
@@ -1305,15 +1306,6 @@
                 rightTailLight.position.set(width / 2.5, lightY, -length / 2 - 0.01);
                 rightTailLight.name = "rightTailLight";
                 grp.add(rightTailLight);
-                
-                // Add brake point lights
-                const brakeLight = new THREE.PointLight(0xff0000, 0, 3); // color, intensity, distance
-                brakeLight.name = "leftBrakeLight";
-                leftTailLight.add(brakeLight);
-
-                const rightBrakeLight = brakeLight.clone();
-                rightBrakeLight.name = "rightBrakeLight";
-                rightTailLight.add(rightBrakeLight);
             }
 
             const indicatorMat = new THREE.MeshBasicMaterial({ color: 0xffa500 });
@@ -1462,7 +1454,6 @@
                 mesh: null, 
                 indicators: null,
                 tailLightMaterials: [],
-                brakeLights: null,
                 isBraking: false,
                 direction: null, 
                 speed: 0, 
@@ -1559,10 +1550,6 @@
             if (leftLight) vehicle.tailLightMaterials.push(leftLight.material);
             if (rightLight) vehicle.tailLightMaterials.push(rightLight.material);
 
-            vehicle.brakeLights = {
-                left: mesh.getObjectByName("leftBrakeLight"),
-                right: mesh.getObjectByName("rightBrakeLight")
-            };
             vehicle.indicators = {
                 fr: mesh.getObjectByName("indicator_fr"),
                 rr: mesh.getObjectByName("indicator_rr"),
@@ -1665,23 +1652,14 @@
                 if (isCurrentlyBraking !== c.isBraking) {
                     c.isBraking = isCurrentlyBraking;
                     
-                    // More intense material glow
                     if (c.tailLightMaterials.length > 0) {
-                        const emissiveColor = c.isBraking ? 0xff0000 : 0xdd0000;
-                        const emissiveIntensity = c.isBraking ? 4.0 : 0.5; // Increased intensity
+                        const emissiveIntensity = c.isBraking ? 6.0 : 0.5;
                         c.tailLightMaterials.forEach(mat => {
                             if (mat.emissive) {
-                                mat.emissive.setHex(emissiveColor);
+                                mat.emissive.setHex(0xff0000); // Always red, intensity changes
                                 mat.emissiveIntensity = emissiveIntensity;
                             }
                         });
-                    }
-
-                    // Point light toggle
-                    if (c.brakeLights) {
-                        const lightIntensity = c.isBraking ? 5.0 : 0;
-                        if (c.brakeLights.left) c.brakeLights.left.intensity = lightIntensity;
-                        if (c.brakeLights.right) c.brakeLights.right.intensity = lightIntensity;
                     }
                 }
 
