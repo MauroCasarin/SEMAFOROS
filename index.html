@@ -1037,7 +1037,7 @@
             create('A8', -WV-8, -LANE_CENTER_H, Math.PI/2);
         }
         
-        function createVehicleMesh(vehicleType, color, width, length) {
+        function createVehicleMesh(vehicleType, color, width, length, modelVariant) {
             const grp = new THREE.Group();
             const mat = new THREE.MeshStandardMaterial({ color: color, roughness: 0.4, metalness: 0.3 });
             const darkMat = new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.4, metalness: 0.1 });
@@ -1046,35 +1046,57 @@
             const bumperMat = new THREE.MeshStandardMaterial({ color: 0x333333, roughness: 0.6, metalness: 0.2 });
 
             if (vehicleType.name === 'CAR') {
-                const bodyHeight = 1.2;
-                const cabinHeight = 0.8;
-                const wheelRadius = 0.5;
+                let bodyHeight = 1.2;
+                let cabinHeight = 0.8;
+                let wheelRadius = 0.5;
+                let cabinLengthFactor = 0.6;
+                let cabinZOffset = -0.05;
+                let rearWindowSlant = -0.15;
 
+                // Determine variant based on the random modelVariant number
+                if (modelVariant < 0.4) {
+                    // Sedan (default, no changes needed)
+                } else if (modelVariant < 0.8) {
+                    // SUV/Hatchback variant
+                    bodyHeight *= 1.2;
+                    cabinHeight *= 1.1;
+                    wheelRadius *= 1.1;
+                    cabinLengthFactor = 0.65; // Slightly longer cabin
+                    cabinZOffset = 0; // More centered cabin
+                    rearWindowSlant = -0.5; // Steeper rear window for a hatchback look
+                } else {
+                    // Compact/Sporty variant
+                    bodyHeight *= 0.9;
+                    cabinHeight *= 0.85;
+                    cabinLengthFactor = 0.5; // Shorter cabin
+                    cabinZOffset = -0.15; // Cabin further back
+                }
+                
                 // Body
                 const body = new THREE.Mesh(new THREE.BoxGeometry(width, bodyHeight, length), mat);
                 body.position.y = wheelRadius + bodyHeight / 2;
                 grp.add(body);
                 
                 // Cabin
-                const cabin = new THREE.Mesh(new THREE.BoxGeometry(width * 0.85, cabinHeight, length * 0.6), mat);
+                const cabin = new THREE.Mesh(new THREE.BoxGeometry(width * 0.85, cabinHeight, length * cabinLengthFactor), mat);
                 cabin.position.y = wheelRadius + bodyHeight + cabinHeight / 2 - 0.2;
-                cabin.position.z = -length * 0.05;
+                cabin.position.z = length * cabinZOffset;
                 grp.add(cabin);
 
                 // Windows
                 const frontWindow = new THREE.Mesh(new THREE.BoxGeometry(width * 0.86, cabinHeight, length * 0.05), glassMat);
                 frontWindow.position.copy(cabin.position);
-                frontWindow.position.z += length * 0.3;
+                frontWindow.position.z += (length * cabinLengthFactor) / 2;
                 frontWindow.rotation.x = 0.2; // slant
                 grp.add(frontWindow);
 
                 const rearWindow = new THREE.Mesh(new THREE.BoxGeometry(width * 0.86, cabinHeight, length * 0.05), glassMat);
                 rearWindow.position.copy(cabin.position);
-                rearWindow.position.z -= length * 0.3;
-                rearWindow.rotation.x = -0.15; // slant
+                rearWindow.position.z -= (length * cabinLengthFactor) / 2;
+                rearWindow.rotation.x = rearWindowSlant; // Use variant's slant
                 grp.add(rearWindow);
 
-                const sideWindows = new THREE.Mesh(new THREE.BoxGeometry(width*0.85 + 0.01, cabinHeight * 0.8, length * 0.5), glassMat);
+                const sideWindows = new THREE.Mesh(new THREE.BoxGeometry(width*0.85 + 0.01, cabinHeight * 0.8, length * (cabinLengthFactor - 0.1)), glassMat);
                 sideWindows.position.copy(cabin.position);
                 grp.add(sideWindows);
 
@@ -1422,8 +1444,8 @@
             else if (rand < 0.85) vehicleType = VEHICLE_TYPES.BUS;
             else vehicleType = VEHICLE_TYPES.MOTORCYCLE;
 
-            const lengthMultiplier = 0.9 + Math.random() * 0.2;
-            const widthMultiplier = 0.95 + Math.random() * 0.1;
+            const lengthMultiplier = 0.9 + Math.random() * 0.25; // Range: 0.9 to 1.15
+            const widthMultiplier = 0.9 + Math.random() * 0.2;  // Range: 0.9 to 1.1
             const actualLength = vehicleType.baseLength * lengthMultiplier;
             const actualWidth = vehicleType.baseWidth * widthMultiplier;
 
@@ -1440,6 +1462,7 @@
                 followingTime: 0.8 + Math.random() * 0.7,
                 actualLength: actualLength,
                 type: vehicleType.name,
+                modelVariant: Math.random(), // For car model variations
                 wantsToTurn: false,
                 isTurning: false,
                 turnPath: null,
@@ -1516,7 +1539,7 @@
             if (cars.some(c => c.mesh.position.distanceTo(new THREE.Vector3(x,0,z)) < c.actualLength * 2.5)) return;
             
             const color = vehicleType.colorPool[Math.floor(Math.random() * vehicleType.colorPool.length)];
-            const mesh = createVehicleMesh(vehicleType, color, actualWidth, actualLength);
+            const mesh = createVehicleMesh(vehicleType, color, actualWidth, actualLength, vehicle.modelVariant);
 
             mesh.position.set(x, 0, z); mesh.rotation.y = rot; scene.add(mesh);
             vehicle.mesh = mesh; 
