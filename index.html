@@ -1053,12 +1053,14 @@
                 let cabinLengthFactor = 0.6;
                 let cabinZOffset = -0.05;
                 let rearWindowSlant = -0.15;
+                let isSUV = false;
 
                 // Determine variant based on the random modelVariant number
                 if (modelVariant < 0.4) {
                     // Sedan (default, no changes needed)
                 } else if (modelVariant < 0.8) {
                     // SUV/Hatchback variant
+                    isSUV = true;
                     bodyHeight *= 1.2;
                     cabinHeight *= 1.1;
                     wheelRadius *= 1.1;
@@ -1100,6 +1102,37 @@
                 const sideWindows = new THREE.Mesh(new THREE.BoxGeometry(width*0.85 + 0.01, cabinHeight * 0.8, length * (cabinLengthFactor - 0.1)), glassMat);
                 sideWindows.position.copy(cabin.position);
                 grp.add(sideWindows);
+
+                // --- NEW DETAILS for CAR ---
+                const roofY = wheelRadius + bodyHeight + cabinHeight - 0.2;
+                if (isSUV) {
+                    // Roof Rails for SUV
+                    const railGeo = new THREE.BoxGeometry(0.2, 0.2, length * 0.7);
+                    const leftRail = new THREE.Mesh(railGeo, darkMat);
+                    leftRail.position.set(-width * 0.4, roofY + 0.1, cabin.position.z);
+                    grp.add(leftRail);
+                    const rightRail = leftRail.clone();
+                    rightRail.position.x *= -1;
+                    grp.add(rightRail);
+                } else {
+                    // Antenna for non-SUV cars
+                    const antennaGeo = new THREE.CylinderGeometry(0.05, 0.05, 0.8, 4);
+                    const antenna = new THREE.Mesh(antennaGeo, darkMat);
+                    const cabinRearZ = cabin.position.z - (length * cabinLengthFactor) / 2;
+                    antenna.position.set(width * 0.2, roofY + 0.4, cabinRearZ - 0.2);
+                    grp.add(antenna);
+                }
+
+                // Side Mirrors for all cars
+                const mirrorGeo = new THREE.BoxGeometry(0.2, 0.4, 0.3);
+                const leftMirror = new THREE.Mesh(mirrorGeo, darkMat);
+                const cabinFrontZ = cabin.position.z + (length * cabinLengthFactor) / 2;
+                leftMirror.position.set(-width / 2, cabin.position.y, cabinFrontZ - 0.6);
+                grp.add(leftMirror);
+                const rightMirror = leftMirror.clone();
+                rightMirror.position.x *= -1;
+                grp.add(rightMirror);
+                // --- END NEW DETAILS ---
 
                 // Bumpers
                 const bumper = new THREE.Mesh(new THREE.BoxGeometry(width, 0.4, 0.3), bumperMat);
@@ -1156,6 +1189,29 @@
                 const cab = new THREE.Mesh(cabGeo, mat);
                 cab.position.set(0, 0, length * 0.325);
                 grp.add(cab);
+
+                // --- NEW DETAILS for TRUCK ---
+                const mirrorArmGeo = new THREE.CylinderGeometry(0.1, 0.1, 1.0, 6);
+                const mirrorHousingGeo = new THREE.BoxGeometry(0.3, 0.8, 0.5);
+                
+                const leftMirrorArm = new THREE.Mesh(mirrorArmGeo, bumperMat);
+                leftMirrorArm.rotation.z = Math.PI / 2;
+                leftMirrorArm.position.set(-cabWidth/2 - 0.4, wheelRadius + cabHeight - 0.8, length * 0.3);
+                grp.add(leftMirrorArm);
+
+                const leftMirrorHousing = new THREE.Mesh(mirrorHousingGeo, bumperMat);
+                leftMirrorHousing.position.set(-cabWidth/2 - 0.8, wheelRadius + cabHeight - 0.8, length * 0.3);
+                grp.add(leftMirrorHousing);
+
+                const rightMirrorArm = leftMirrorArm.clone();
+                rightMirrorArm.position.x *= -1;
+                rightMirrorArm.rotation.z *= -1;
+                grp.add(rightMirrorArm);
+                
+                const rightMirrorHousing = leftMirrorHousing.clone();
+                rightMirrorHousing.position.x *= -1;
+                grp.add(rightMirrorHousing);
+                // --- END NEW DETAILS ---
 
                 const grille = new THREE.Mesh(new THREE.BoxGeometry(width * 0.8, 1.0, 0.2), darkMat);
                 grille.position.set(0, wheelRadius + 0.7, length * 0.5 - 0.1);
@@ -1222,13 +1278,26 @@
                     grp.add(pillar);
                 }
                 
-                const mirrorGeo = new THREE.BoxGeometry(0.2, 0.5, 0.4);
-                const mirror1 = new THREE.Mesh(mirrorGeo, darkMat);
-                mirror1.position.set(width/2 + 0.1, wheelRadius + bodyHeight - 0.5, length/2 - 0.5);
-                grp.add(mirror1);
-                const mirror2 = mirror1.clone();
-                mirror2.position.x *= -1;
-                grp.add(mirror2);
+                // --- REFINED DETAILS for BUS ---
+                const busMirrorArmGeo = new THREE.CylinderGeometry(0.15, 0.15, 0.8, 6);
+                const busMirrorHousingGeo = new THREE.BoxGeometry(0.4, 1.0, 0.6);
+
+                const leftBusMirrorArm = new THREE.Mesh(busMirrorArmGeo, darkMat);
+                leftBusMirrorArm.position.set(-width / 2, wheelRadius + bodyHeight - 0.8, length / 2 - 0.2);
+                leftBusMirrorArm.rotation.z = -Math.PI / 4;
+                grp.add(leftBusMirrorArm);
+                const leftBusMirrorHousing = new THREE.Mesh(busMirrorHousingGeo, darkMat);
+                leftBusMirrorHousing.position.set(-width / 2 - 0.4, wheelRadius + bodyHeight - 1.2, length / 2 - 0.2);
+                grp.add(leftBusMirrorHousing);
+
+                const rightBusMirrorArm = leftBusMirrorArm.clone();
+                rightBusMirrorArm.position.x *= -1;
+                rightBusMirrorArm.rotation.z *= -1;
+                grp.add(rightBusMirrorArm);
+                const rightBusMirrorHousing = leftBusMirrorHousing.clone();
+                rightBusMirrorHousing.position.x *= -1;
+                grp.add(rightBusMirrorHousing);
+                // --- END REFINED DETAILS ---
 
                 const wheelWidth = 0.5;
                 const wheelGeo = new THREE.CylinderGeometry(wheelRadius, wheelRadius, wheelWidth, 10);
@@ -1266,6 +1335,16 @@
                 handlebars.position.set(0, wheelRadius + 1.1, length * 0.35);
                 grp.add(handlebars);
                 
+                // --- NEW DETAILS for MOTORCYCLE ---
+                const bikeMirrorGeo = new THREE.BoxGeometry(0.3, 0.2, 0.1);
+                const leftBikeMirror = new THREE.Mesh(bikeMirrorGeo, darkMat);
+                leftBikeMirror.position.set(-width * 0.7, wheelRadius + 1.25, length * 0.3);
+                grp.add(leftBikeMirror);
+                const rightBikeMirror = leftBikeMirror.clone();
+                rightBikeMirror.position.x *= -1;
+                grp.add(rightBikeMirror);
+                // --- END NEW DETAILS ---
+
                 const wheelWidth = 0.2;
                 const wheelGeo = new THREE.CylinderGeometry(wheelRadius, wheelRadius, wheelWidth, 10);
                 const wheelY = wheelRadius;
