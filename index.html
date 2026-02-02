@@ -1041,6 +1041,7 @@
             const grp = new THREE.Group();
             const mat = new THREE.MeshStandardMaterial({ color: color, roughness: 0.2, metalness: 0.5 });
             const darkMat = new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.4, metalness: 0.1 });
+            const wheelMat = new THREE.MeshStandardMaterial({ color: 0x222222, roughness: 0.8, metalness: 0.1 });
 
             if (vehicleType.name === 'CAR') {
                 const body = new THREE.Mesh(new THREE.BoxGeometry(width, 1.5, length), mat);
@@ -1049,6 +1050,24 @@
                 const top = new THREE.Mesh(new THREE.BoxGeometry(width * 0.85, 0.8, length * 0.55), darkMat);
                 top.position.set(0, 1.9, -0.2);
                 grp.add(top);
+
+                const wheelRadius = 0.6;
+                const wheelWidth = 0.3;
+                const wheelGeo = new THREE.CylinderGeometry(wheelRadius, wheelRadius, wheelWidth, 16);
+                const wheelY = wheelRadius;
+                const wheelXOffset = width / 2;
+                const wheelZOffset = length / 2 - wheelRadius * 1.5;
+
+                const wheels = [
+                    new THREE.Mesh(wheelGeo, wheelMat), new THREE.Mesh(wheelGeo, wheelMat),
+                    new THREE.Mesh(wheelGeo, wheelMat), new THREE.Mesh(wheelGeo, wheelMat)
+                ];
+                wheels[0].position.set(wheelXOffset, wheelY, wheelZOffset);
+                wheels[1].position.set(-wheelXOffset, wheelY, wheelZOffset);
+                wheels[2].position.set(wheelXOffset, wheelY, -wheelZOffset);
+                wheels[3].position.set(-wheelXOffset, wheelY, -wheelZOffset);
+                wheels.forEach(w => { w.rotation.z = Math.PI / 2; grp.add(w); });
+
             } else if (vehicleType.name === 'TRUCK') {
                 const cab = new THREE.Mesh(new THREE.BoxGeometry(width, 2.2, length * 0.4), mat);
                 cab.position.set(0, 1.1, length * 0.3);
@@ -1056,6 +1075,29 @@
                 const trailer = new THREE.Mesh(new THREE.BoxGeometry(width * 0.95, 2.5, length * 0.65), darkMat);
                 trailer.position.set(0, 1.25, -length * 0.175);
                 grp.add(trailer);
+                
+                const wheelRadius = 0.8;
+                const wheelWidth = 0.4;
+                const wheelGeo = new THREE.CylinderGeometry(wheelRadius, wheelRadius, wheelWidth, 16);
+                const wheelY = wheelRadius;
+                const wheelXOffset = width / 2;
+
+                const frontWheels = [new THREE.Mesh(wheelGeo, wheelMat), new THREE.Mesh(wheelGeo, wheelMat)];
+                frontWheels[0].position.set(wheelXOffset, wheelY, length * 0.35);
+                frontWheels[1].position.set(-wheelXOffset, wheelY, length * 0.35);
+                frontWheels.forEach(w => { w.rotation.z = Math.PI / 2; grp.add(w); });
+
+                const rearWheels = [
+                    new THREE.Mesh(wheelGeo, wheelMat), new THREE.Mesh(wheelGeo, wheelMat),
+                    new THREE.Mesh(wheelGeo, wheelMat), new THREE.Mesh(wheelGeo, wheelMat)
+                ];
+                rearWheels[0].position.set(wheelXOffset, wheelY, -length * 0.05);
+                rearWheels[1].position.set(-wheelXOffset, wheelY, -length * 0.05);
+                rearWheels[2].position.set(wheelXOffset, wheelY, -length * 0.35);
+                rearWheels[3].position.set(-wheelXOffset, wheelY, -length * 0.35);
+                rearWheels.forEach(w => { w.rotation.z = Math.PI / 2; grp.add(w); });
+
+
             } else if (vehicleType.name === 'BUS') {
                 const body = new THREE.Mesh(new THREE.BoxGeometry(width, 2.8, length), mat);
                 body.position.y = 1.4;
@@ -1063,13 +1105,52 @@
                 const windows = new THREE.Mesh(new THREE.BoxGeometry(width * 1.01, 1.4, length * 0.85), darkMat);
                 windows.position.set(0, 2.101, 0);
                 grp.add(windows);
+
+                const wheelRadius = 0.9;
+                const wheelWidth = 0.5;
+                const wheelGeo = new THREE.CylinderGeometry(wheelRadius, wheelRadius, wheelWidth, 16);
+                const wheelY = wheelRadius;
+                const wheelXOffset = width / 2;
+                
+                const wheels = [
+                    new THREE.Mesh(wheelGeo, wheelMat), new THREE.Mesh(wheelGeo, wheelMat),
+                    new THREE.Mesh(wheelGeo, wheelMat), new THREE.Mesh(wheelGeo, wheelMat),
+                    new THREE.Mesh(wheelGeo, wheelMat), new THREE.Mesh(wheelGeo, wheelMat)
+                ];
+                wheels[0].position.set(wheelXOffset, wheelY, length * 0.35);
+                wheels[1].position.set(-wheelXOffset, wheelY, length * 0.35);
+                wheels[2].position.set(wheelXOffset, wheelY, -length * 0.25);
+                wheels[3].position.set(-wheelXOffset, wheelY, -length * 0.25);
+                wheels[4].position.set(wheelXOffset, wheelY, -length * 0.4);
+                wheels[5].position.set(-wheelXOffset, wheelY, -length * 0.4);
+                wheels.forEach(w => { w.rotation.z = Math.PI / 2; grp.add(w); });
+
+
             } else if (vehicleType.name === 'MOTORCYCLE') {
-                const body = new THREE.Mesh(new THREE.BoxGeometry(width, 0.8, length), mat);
-                body.position.y = 0.6;
-                grp.add(body);
+                const frame = new THREE.Mesh(new THREE.BoxGeometry(width * 0.6, 0.6, length), mat);
+                frame.position.y = 0.8;
+                grp.add(frame);
                 const seat = new THREE.Mesh(new THREE.BoxGeometry(width * 0.8, 0.4, length * 0.4), darkMat);
-                seat.position.set(0, 1.2, -length * 0.1);
+                seat.position.set(0, 1.3, -length * 0.1);
                 grp.add(seat);
+                const handlebars = new THREE.Mesh(new THREE.BoxGeometry(width * 1.8, 0.2, 0.2), darkMat);
+                handlebars.position.set(0, 1.6, length * 0.35);
+                grp.add(handlebars);
+                
+                const wheelRadius = 0.7;
+                const wheelWidth = 0.2;
+                const wheelGeo = new THREE.CylinderGeometry(wheelRadius, wheelRadius, wheelWidth, 16);
+                const wheelY = wheelRadius;
+                
+                const frontWheel = new THREE.Mesh(wheelGeo, wheelMat);
+                frontWheel.position.set(0, wheelY, length * 0.4);
+                frontWheel.rotation.z = Math.PI / 2;
+                grp.add(frontWheel);
+
+                const rearWheel = new THREE.Mesh(wheelGeo, wheelMat);
+                rearWheel.position.set(0, wheelY, -length * 0.4);
+                rearWheel.rotation.z = Math.PI / 2;
+                grp.add(rearWheel);
             }
             
             grp.traverse(child => { if(child.isMesh) { child.castShadow = true; } });
