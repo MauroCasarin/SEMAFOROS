@@ -1039,19 +1039,54 @@
         
         function createVehicleMesh(vehicleType, color, width, length) {
             const grp = new THREE.Group();
-            const mat = new THREE.MeshStandardMaterial({ color: color, roughness: 0.2, metalness: 0.5 });
+            const mat = new THREE.MeshStandardMaterial({ color: color, roughness: 0.4, metalness: 0.3 });
             const darkMat = new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.4, metalness: 0.1 });
-            const wheelMat = new THREE.MeshStandardMaterial({ color: 0x222222, roughness: 0.8, metalness: 0.1 });
+            const wheelMat = new THREE.MeshStandardMaterial({ color: 0x1a1a1a, roughness: 0.8, metalness: 0.0 });
+            const glassMat = new THREE.MeshStandardMaterial({ color: 0x333333, roughness: 0.1, metalness: 0.2, transparent: true, opacity: 0.7 });
+            const bumperMat = new THREE.MeshStandardMaterial({ color: 0x333333, roughness: 0.6, metalness: 0.2 });
 
             if (vehicleType.name === 'CAR') {
-                const body = new THREE.Mesh(new THREE.BoxGeometry(width, 1.5, length), mat);
-                body.position.y = 0.75;
-                grp.add(body);
-                const top = new THREE.Mesh(new THREE.BoxGeometry(width * 0.85, 0.8, length * 0.55), darkMat);
-                top.position.set(0, 1.9, -0.2);
-                grp.add(top);
+                const bodyHeight = 1.2;
+                const cabinHeight = 0.8;
+                const wheelRadius = 0.5;
 
-                const wheelRadius = 0.6;
+                // Body
+                const body = new THREE.Mesh(new THREE.BoxGeometry(width, bodyHeight, length), mat);
+                body.position.y = wheelRadius + bodyHeight / 2;
+                grp.add(body);
+                
+                // Cabin
+                const cabin = new THREE.Mesh(new THREE.BoxGeometry(width * 0.85, cabinHeight, length * 0.6), mat);
+                cabin.position.y = wheelRadius + bodyHeight + cabinHeight / 2 - 0.2;
+                cabin.position.z = -length * 0.05;
+                grp.add(cabin);
+
+                // Windows
+                const frontWindow = new THREE.Mesh(new THREE.BoxGeometry(width * 0.86, cabinHeight, length * 0.05), glassMat);
+                frontWindow.position.copy(cabin.position);
+                frontWindow.position.z += length * 0.3;
+                frontWindow.rotation.x = 0.2; // slant
+                grp.add(frontWindow);
+
+                const rearWindow = new THREE.Mesh(new THREE.BoxGeometry(width * 0.86, cabinHeight, length * 0.05), glassMat);
+                rearWindow.position.copy(cabin.position);
+                rearWindow.position.z -= length * 0.3;
+                rearWindow.rotation.x = -0.15; // slant
+                grp.add(rearWindow);
+
+                const sideWindows = new THREE.Mesh(new THREE.BoxGeometry(width*0.85 + 0.01, cabinHeight * 0.8, length * 0.5), glassMat);
+                sideWindows.position.copy(cabin.position);
+                grp.add(sideWindows);
+
+                // Bumpers
+                const bumper = new THREE.Mesh(new THREE.BoxGeometry(width, 0.4, 0.3), bumperMat);
+                bumper.position.set(0, wheelRadius + 0.2, length / 2);
+                grp.add(bumper);
+                const rearBumper = bumper.clone();
+                rearBumper.position.z = -length / 2;
+                grp.add(rearBumper);
+
+                // Wheels
                 const wheelWidth = 0.3;
                 const wheelGeo = new THREE.CylinderGeometry(wheelRadius, wheelRadius, wheelWidth, 16);
                 const wheelY = wheelRadius;
@@ -1069,14 +1104,52 @@
                 wheels.forEach(w => { w.rotation.z = Math.PI / 2; grp.add(w); });
 
             } else if (vehicleType.name === 'TRUCK') {
-                const cab = new THREE.Mesh(new THREE.BoxGeometry(width, 2.2, length * 0.4), mat);
-                cab.position.set(0, 1.1, length * 0.3);
+                const wheelRadius = 0.8;
+                
+                // Cab
+                const cabGeo = new THREE.BufferGeometry();
+                const cabWidth = width;
+                const cabHeight = 2.4;
+                const cabLength = length * 0.35;
+                const cabSlant = 0.5;
+
+                const vertices = new Float32Array([
+                    -cabWidth/2, wheelRadius, cabLength/2, // 0
+                     cabWidth/2, wheelRadius, cabLength/2, // 1
+                    -cabWidth/2, wheelRadius + cabHeight, cabLength/2 - cabSlant, // 2
+                     cabWidth/2, wheelRadius + cabHeight, cabLength/2 - cabSlant, // 3
+                    -cabWidth/2, wheelRadius, -cabLength/2, // 4
+                     cabWidth/2, wheelRadius, -cabLength/2, // 5
+                    -cabWidth/2, wheelRadius + cabHeight, -cabLength/2, // 6
+                     cabWidth/2, wheelRadius + cabHeight, -cabLength/2, // 7
+                ]);
+                const indices = [
+                    0, 1, 2,  1, 3, 2, 4, 6, 5,  5, 6, 7, 4, 0, 6,  0, 2, 6,
+                    1, 5, 3,  5, 7, 3, 2, 3, 6,  3, 7, 6, 4, 5, 0,  5, 1, 0,
+                ];
+                cabGeo.setIndex(indices);
+                cabGeo.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
+                cabGeo.computeVertexNormals();
+                const cab = new THREE.Mesh(cabGeo, mat);
+                cab.position.set(0, 0, length * 0.325);
                 grp.add(cab);
-                const trailer = new THREE.Mesh(new THREE.BoxGeometry(width * 0.95, 2.5, length * 0.65), darkMat);
-                trailer.position.set(0, 1.25, -length * 0.175);
+
+                const grille = new THREE.Mesh(new THREE.BoxGeometry(width * 0.8, 1.0, 0.2), darkMat);
+                grille.position.set(0, wheelRadius + 0.7, length * 0.5 - 0.1);
+                grp.add(grille);
+
+                const trailer = new THREE.Mesh(new THREE.BoxGeometry(width * 0.95, 2.8, length * 0.65), darkMat);
+                trailer.position.set(0, wheelRadius + 1.4, -length * 0.175);
                 grp.add(trailer);
                 
-                const wheelRadius = 0.8;
+                const stackGeo = new THREE.CylinderGeometry(0.2, 0.2, 3, 8);
+                const stack1 = new THREE.Mesh(stackGeo, bumperMat);
+                stack1.position.set(-width/2 + 0.2, wheelRadius + 1.5, length * 0.1);
+                grp.add(stack1);
+                const stack2 = stack1.clone();
+                stack2.position.x = width/2 - 0.2;
+                grp.add(stack2);
+
                 const wheelWidth = 0.4;
                 const wheelGeo = new THREE.CylinderGeometry(wheelRadius, wheelRadius, wheelWidth, 16);
                 const wheelY = wheelRadius;
@@ -1095,18 +1168,45 @@
                 rearWheels[1].position.set(-wheelXOffset, wheelY, -length * 0.05);
                 rearWheels[2].position.set(wheelXOffset, wheelY, -length * 0.35);
                 rearWheels[3].position.set(-wheelXOffset, wheelY, -length * 0.35);
-                rearWheels.forEach(w => { w.rotation.z = Math.PI / 2; grp.add(w); });
-
+                rearWheels.forEach(w => { 
+                    w.rotation.z = Math.PI / 2; 
+                    grp.add(w); 
+                    const innerWheel = w.clone();
+                    innerWheel.position.x -= (wheelWidth * 1.1) * Math.sign(w.position.x);
+                    grp.add(innerWheel);
+                });
 
             } else if (vehicleType.name === 'BUS') {
-                const body = new THREE.Mesh(new THREE.BoxGeometry(width, 2.8, length), mat);
-                body.position.y = 1.4;
-                grp.add(body);
-                const windows = new THREE.Mesh(new THREE.BoxGeometry(width * 1.01, 1.4, length * 0.85), darkMat);
-                windows.position.set(0, 2.101, 0);
-                grp.add(windows);
-
                 const wheelRadius = 0.9;
+                const bodyHeight = 2.8;
+                
+                const body = new THREE.Mesh(new THREE.BoxGeometry(width, bodyHeight, length), mat);
+                body.position.y = wheelRadius + bodyHeight / 2;
+                grp.add(body);
+                
+                const windowHeight = 1.2;
+                const windowY = wheelRadius + bodyHeight - windowHeight/2 - 0.2;
+                const windowStrip = new THREE.Mesh(new THREE.BoxGeometry(width * 1.01, windowHeight, length * 0.85), glassMat);
+                windowStrip.position.set(0, windowY, 0);
+                grp.add(windowStrip);
+
+                const pillarGeo = new THREE.BoxGeometry(width * 1.02, windowHeight, 0.3);
+                const numPillars = 6;
+                for (let i = 0; i <= numPillars; i++) {
+                    const pillar = new THREE.Mesh(pillarGeo, mat);
+                    const zPos = (length * 0.85 / numPillars) * (i - numPillars/2);
+                    pillar.position.set(0, windowY, zPos);
+                    grp.add(pillar);
+                }
+                
+                const mirrorGeo = new THREE.BoxGeometry(0.2, 0.5, 0.4);
+                const mirror1 = new THREE.Mesh(mirrorGeo, darkMat);
+                mirror1.position.set(width/2 + 0.1, wheelRadius + bodyHeight - 0.5, length/2 - 0.5);
+                grp.add(mirror1);
+                const mirror2 = mirror1.clone();
+                mirror2.position.x *= -1;
+                grp.add(mirror2);
+
                 const wheelWidth = 0.5;
                 const wheelGeo = new THREE.CylinderGeometry(wheelRadius, wheelRadius, wheelWidth, 16);
                 const wheelY = wheelRadius;
@@ -1114,30 +1214,35 @@
                 
                 const wheels = [
                     new THREE.Mesh(wheelGeo, wheelMat), new THREE.Mesh(wheelGeo, wheelMat),
-                    new THREE.Mesh(wheelGeo, wheelMat), new THREE.Mesh(wheelGeo, wheelMat),
                     new THREE.Mesh(wheelGeo, wheelMat), new THREE.Mesh(wheelGeo, wheelMat)
                 ];
                 wheels[0].position.set(wheelXOffset, wheelY, length * 0.35);
                 wheels[1].position.set(-wheelXOffset, wheelY, length * 0.35);
-                wheels[2].position.set(wheelXOffset, wheelY, -length * 0.25);
-                wheels[3].position.set(-wheelXOffset, wheelY, -length * 0.25);
-                wheels[4].position.set(wheelXOffset, wheelY, -length * 0.4);
-                wheels[5].position.set(-wheelXOffset, wheelY, -length * 0.4);
-                wheels.forEach(w => { w.rotation.z = Math.PI / 2; grp.add(w); });
-
+                wheels[2].position.set(wheelXOffset, wheelY, -length * 0.4);
+                wheels[3].position.set(-wheelXOffset, wheelY, -length * 0.4);
+                wheels.forEach(w => { 
+                     w.rotation.z = Math.PI / 2; 
+                     grp.add(w); 
+                     if (w.position.z < 0) {
+                         const innerWheel = w.clone();
+                         innerWheel.position.x -= (wheelWidth * 1.1) * Math.sign(w.position.x);
+                         grp.add(innerWheel);
+                     }
+                });
 
             } else if (vehicleType.name === 'MOTORCYCLE') {
+                const wheelRadius = 0.7;
+
                 const frame = new THREE.Mesh(new THREE.BoxGeometry(width * 0.6, 0.6, length), mat);
-                frame.position.y = 0.8;
+                frame.position.y = wheelRadius + 0.3;
                 grp.add(frame);
                 const seat = new THREE.Mesh(new THREE.BoxGeometry(width * 0.8, 0.4, length * 0.4), darkMat);
-                seat.position.set(0, 1.3, -length * 0.1);
+                seat.position.set(0, wheelRadius + 0.8, -length * 0.1);
                 grp.add(seat);
                 const handlebars = new THREE.Mesh(new THREE.BoxGeometry(width * 1.8, 0.2, 0.2), darkMat);
-                handlebars.position.set(0, 1.6, length * 0.35);
+                handlebars.position.set(0, wheelRadius + 1.1, length * 0.35);
                 grp.add(handlebars);
                 
-                const wheelRadius = 0.7;
                 const wheelWidth = 0.2;
                 const wheelGeo = new THREE.CylinderGeometry(wheelRadius, wheelRadius, wheelWidth, 16);
                 const wheelY = wheelRadius;
@@ -1155,33 +1260,32 @@
             
             grp.traverse(child => { if(child.isMesh) { child.castShadow = true; } });
 
-            const lightY = 0.85;
-
-            // Headlights & Taillights
+            const lightY = 1.0;
             const headLightMat = new THREE.MeshBasicMaterial({ color: 0xffffaa });
             const tailLightMat = new THREE.MeshStandardMaterial({ color: 0xdd0000, emissive: 0xdd0000, emissiveIntensity: 0.4, roughness: 0.8 });
             const lightWidth = Math.max(0.2, width * 0.2);
 
-            const leftHeadLight = new THREE.Mesh(new THREE.BoxGeometry(lightWidth, 0.5, 0.2), headLightMat);
-            leftHeadLight.position.set(-width / 2.5, lightY, length / 2 + 0.01);
-            grp.add(leftHeadLight);
+            if (vehicleType.name !== 'MOTORCYCLE') {
+                const leftHeadLight = new THREE.Mesh(new THREE.BoxGeometry(lightWidth, 0.5, 0.2), headLightMat);
+                leftHeadLight.position.set(-width / 2.5, lightY, length / 2 + 0.01);
+                grp.add(leftHeadLight);
 
-            const rightHeadLight = new THREE.Mesh(new THREE.BoxGeometry(lightWidth, 0.5, 0.2), headLightMat);
-            rightHeadLight.position.set(width / 2.5, lightY, length / 2 + 0.01);
-            grp.add(rightHeadLight);
+                const rightHeadLight = new THREE.Mesh(new THREE.BoxGeometry(lightWidth, 0.5, 0.2), headLightMat);
+                rightHeadLight.position.set(width / 2.5, lightY, length / 2 + 0.01);
+                grp.add(rightHeadLight);
 
-            const leftTailLight = new THREE.Mesh(new THREE.BoxGeometry(lightWidth, 0.5, 0.2), tailLightMat);
-            leftTailLight.position.set(-width / 2.5, lightY, -length / 2 - 0.01);
-            leftTailLight.name = "leftTailLight";
-            grp.add(leftTailLight);
-            
-            const rightTailLight = new THREE.Mesh(new THREE.BoxGeometry(lightWidth, 0.5, 0.2), tailLightMat.clone());
-            rightTailLight.position.set(width / 2.5, lightY, -length / 2 - 0.01);
-            rightTailLight.name = "rightTailLight";
-            grp.add(rightTailLight);
+                const leftTailLight = new THREE.Mesh(new THREE.BoxGeometry(lightWidth, 0.5, 0.2), tailLightMat);
+                leftTailLight.position.set(-width / 2.5, lightY, -length / 2 - 0.01);
+                leftTailLight.name = "leftTailLight";
+                grp.add(leftTailLight);
+                
+                const rightTailLight = new THREE.Mesh(new THREE.BoxGeometry(lightWidth, 0.5, 0.2), tailLightMat.clone());
+                rightTailLight.position.set(width / 2.5, lightY, -length / 2 - 0.01);
+                rightTailLight.name = "rightTailLight";
+                grp.add(rightTailLight);
+            }
 
-            // Indicators
-            const indicatorMat = new THREE.MeshBasicMaterial({ color: 0xffa500 }); // Amber
+            const indicatorMat = new THREE.MeshBasicMaterial({ color: 0xffa500 });
             const indicatorSize = { w: 0.4, h: 0.5, d: 0.4 };
             const indicatorGeo = new THREE.BoxGeometry(indicatorSize.w, indicatorSize.h, indicatorSize.d);
 
