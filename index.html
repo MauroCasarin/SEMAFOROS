@@ -343,25 +343,48 @@
             buildInfrastructure(scene) {
                 const createTrafficLight = (x, z, rotation) => {
                     const group = new THREE.Group();
-                    const housingMat = new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.5 });
-                    const housing = new THREE.Mesh(new THREE.BoxGeometry(3.5, 5, 3.5), housingMat);
+                    const housingMat = new THREE.MeshStandardMaterial({ color: 0x222222, roughness: 0.5, metalness: 0.5 });
+                    const postMat = new THREE.MeshStandardMaterial({ color: 0x333333, roughness: 0.8 });
+                    
+                    const post = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.5, 7, 8), postMat);
+                    post.position.y = 3.5;
+                    group.add(post);
 
-                    const bulbMat = new THREE.MeshStandardMaterial({ 
-                        color: 0x111111,
-                        emissive: 0x111111,
-                        emissiveIntensity: 0,
-                        roughness: 0.8,
-                        metalness: 0.2
-                    });
-                    const colorBulb = new THREE.Mesh(new THREE.SphereGeometry(1.1, 16, 16), bulbMat);
-                    colorBulb.position.set(0, 0, 1.8);
-
-                    housing.add(colorBulb);
+                    const housing = new THREE.Mesh(new THREE.BoxGeometry(1.5, 4, 1.5), housingMat);
+                    housing.position.y = 7;
                     group.add(housing);
-                    group.position.set(x, 3, z);
+
+                    const createBulb = (yPos) => {
+                        const bulbMat = new THREE.MeshStandardMaterial({
+                            color: 0x1a1a1a,
+                            emissive: 0x1a1a1a,
+                            emissiveIntensity: 0,
+                            roughness: 0.2,
+                            metalness: 0.1
+                        });
+                        const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.5, 16, 16), bulbMat);
+                        bulb.position.set(0, yPos, 0.76);
+                        housing.add(bulb);
+                        return bulb.material;
+                    };
+                    
+                    const redBulb = createBulb(1.2);
+                    const yellowBulb = createBulb(0);
+                    const greenBulb = createBulb(-1.2);
+                    
+                    const topIndicatorMat = new THREE.MeshStandardMaterial({
+                        color: 0x1a1a1a,
+                        emissive: 0x1a1a1a,
+                        emissiveIntensity: 0
+                    });
+                    const topIndicator = new THREE.Mesh(new THREE.CylinderGeometry(0.7, 0.7, 0.3, 16), topIndicatorMat);
+                    topIndicator.position.y = 9.15; // On top of the housing
+                    group.add(topIndicator);
+
+                    group.position.set(x, 0, z);
                     group.rotation.y = rotation;
                     scene.add(group);
-                    return { colorBulb: colorBulb };
+                    return { red: redBulb, yellow: yellowBulb, green: greenBulb, topIndicator: topIndicatorMat };
                 };
                 
                 const offsetX = ROAD_WIDTH_V / 2 + 3;
@@ -376,42 +399,79 @@
             }
 
             animateLights(elapsedTime) {
-                const OFF_COLOR = 0x111111;
-                const RED_COLOR = 0xff0000;
-                const YELLOW_COLOR = 0xffaa00;
-                const GREEN_COLOR = 0x00ff00;
+                const OFF_INTENSITY = 0;
+                const RED_INTENSITY = 1.8;
+                const YELLOW_INTENSITY = 2.0;
+                const GREEN_INTENSITY = 1.5;
+                const DARK_COLOR = new THREE.Color(0x1a1a1a);
+                const RED_COLOR = new THREE.Color(0xff0000);
+                const YELLOW_COLOR = new THREE.Color(0xffaa00);
+                const GREEN_COLOR = new THREE.Color(0x00ff00);
 
-                const applyStateToMaterial = (material, state) => {
+                const applyStateToLights = (materials, state) => {
+                    const INACTIVE_BRIGHTNESS = 0.4; // 40% brightness for inactive bulbs
+
+                    // Reset all lights to their base inactive state (colored but not glowing)
+                    materials.red.color.copy(RED_COLOR).multiplyScalar(INACTIVE_BRIGHTNESS);
+                    materials.yellow.color.copy(YELLOW_COLOR).multiplyScalar(INACTIVE_BRIGHTNESS);
+                    materials.green.color.copy(GREEN_COLOR).multiplyScalar(INACTIVE_BRIGHTNESS);
+                    
+                    materials.red.emissive.copy(DARK_COLOR);
+                    materials.yellow.emissive.copy(DARK_COLOR);
+                    materials.green.emissive.copy(DARK_COLOR);
+
+                    materials.red.emissiveIntensity = OFF_INTENSITY;
+                    materials.yellow.emissiveIntensity = OFF_INTENSITY;
+                    materials.green.emissiveIntensity = OFF_INTENSITY;
+
+                    // Reset top indicator
+                    materials.topIndicator.emissiveIntensity = OFF_INTENSITY;
+                    materials.topIndicator.color.copy(DARK_COLOR);
+                    materials.topIndicator.emissive.copy(DARK_COLOR);
+
+                    // Then, set the active light to be bright and emissive
                     switch(state) {
-                        case LightState.GREEN:
-                            material.color.setHex(GREEN_COLOR);
-                            material.emissive.setHex(GREEN_COLOR);
-                            const pulse = (Math.sin(elapsedTime * 5) + 1) / 2; // Varies between 0 and 1
-                            material.emissiveIntensity = 1.0 + pulse * 0.5;
+                        case LightState.GREEN: {
+                            const pulse = (Math.sin(elapsedTime * 5) + 1) / 2;
+                            const intensity = GREEN_INTENSITY + pulse * 0.5;
+                            materials.green.emissiveIntensity = intensity;
+                            materials.green.color.copy(GREEN_COLOR);
+                            materials.green.emissive.copy(GREEN_COLOR);
+
+                            materials.topIndicator.emissiveIntensity = intensity;
+                            materials.topIndicator.color.copy(GREEN_COLOR);
+                            materials.topIndicator.emissive.copy(GREEN_COLOR);
                             break;
-                        case LightState.RED:
-                            material.color.setHex(RED_COLOR);
-                            material.emissive.setHex(RED_COLOR);
-                            const flicker = Math.random() > 0.96 ? -0.4 : 0; // Occasional flicker
-                            material.emissiveIntensity = 1.2 + flicker;
+                        }
+                        case LightState.RED: {
+                            const flicker = Math.random() > 0.97 ? -0.5 : 0;
+                            const intensity = RED_INTENSITY + flicker;
+                            materials.red.emissiveIntensity = intensity;
+                            materials.red.color.copy(RED_COLOR);
+                            materials.red.emissive.copy(RED_COLOR);
+                            
+                            materials.topIndicator.emissiveIntensity = intensity;
+                            materials.topIndicator.color.copy(RED_COLOR);
+                            materials.topIndicator.emissive.copy(RED_COLOR);
                             break;
-                        case LightState.YELLOW:
-                            material.color.setHex(YELLOW_COLOR);
-                            material.emissive.setHex(YELLOW_COLOR);
-                            material.emissiveIntensity = 1.5; // Bright and constant
+                        }
+                        case LightState.YELLOW: {
+                            materials.yellow.emissiveIntensity = YELLOW_INTENSITY;
+                            materials.yellow.color.copy(YELLOW_COLOR);
+                            materials.yellow.emissive.copy(YELLOW_COLOR);
+
+                            materials.topIndicator.emissiveIntensity = YELLOW_INTENSITY;
+                            materials.topIndicator.color.copy(YELLOW_COLOR);
+                            materials.topIndicator.emissive.copy(YELLOW_COLOR);
                             break;
-                        default: // OFF
-                            material.color.setHex(OFF_COLOR);
-                            material.emissive.setHex(OFF_COLOR);
-                            material.emissiveIntensity = 0;
-                            break;
+                        }
                     }
                 };
                 
-                applyStateToMaterial(this.lights.north.colorBulb.material, this.stateV);
-                applyStateToMaterial(this.lights.south.colorBulb.material, this.stateV);
-                applyStateToMaterial(this.lights.east.colorBulb.material, this.stateH);
-                applyStateToMaterial(this.lights.west.colorBulb.material, this.stateH);
+                applyStateToLights(this.lights.north, this.stateV);
+                applyStateToLights(this.lights.south, this.stateV);
+                applyStateToLights(this.lights.east, this.stateH);
+                applyStateToLights(this.lights.west, this.stateH);
             }
 
             switchLight(giveGreenTo) {
